@@ -1,0 +1,60 @@
+@startuml
+
+skinparam backgroundColor white
+skinparam shadowing false
+skinparam dpi 180
+skinparam defaultFontName "Segoe UI"
+skinparam defaultFontSize 15
+skinparam ArrowColor #355C7D
+skinparam ArrowThickness 2
+skinparam packageStyle rectangle
+skinparam rectangle {
+  RoundCorner 24
+  BorderColor #355C7D
+  BorderThickness 2
+  FontColor #1F2D3A
+  VerticalAlignment center
+}
+skinparam note {
+  BorderColor #A9BBC8
+  BackgroundColor #F8FBFD
+  FontColor #3B4A55
+  HorizontalAlignment center
+}
+
+skinparam DefaultTextAlignment center
+
+rectangle "<size:20><b>Recognition vs Reconstruction</b></size>\n<size:13>Why generic semantic backbones are not ideal for low-level restoration</size>" as T #F7FBFF
+
+rectangle "<size:18><b>High-Level Recognition</b></size>\n<size:13>Classification / detection / segmentation</size>" as R0 #EAF4FF
+rectangle "<size:16><b>Input Image</b></size>" as R1 #F7FBFF
+rectangle "<size:16><b>Backbone Features</b></size>\n<size:12>Semantic, invariant, category-aware</size>" as R2 #DCEEFF
+rectangle "<size:16><b>Output</b></size>\n<size:12>Label, box, or mask</size>" as R3 #FFF6E8
+
+rectangle "<size:18><b>Low-Level Reconstruction</b></size>\n<size:13>Super-resolution / denoising / deblurring</size>" as L0 #FFF0E6
+rectangle "<size:16><b>Degraded Input</b></size>\n<size:12>Blurred / noisy / low-res image</size>" as L1 #FFF9F2
+rectangle "<size:16><b>Needed Features</b></size>\n<size:12>Fine detail, exact spatial structure,\ndegradation-aware cues</size>" as L2 #FFE4CC
+rectangle "<size:16><b>Output</b></size>\n<size:12>Restored high-quality image</size>" as L3 #FFF6E8
+
+T -[hidden]down-> R0
+T -[hidden]down-> L0
+R0 -[hidden]down-> R1
+L0 -[hidden]down-> L1
+
+R1 --> R2
+R2 --> R3
+
+L1 --> L2
+L2 --> L3
+
+note bottom of R2
+  <b>Good for recognition</b>
+  Encourages invariance to nuisance changes.
+end note
+
+note bottom of L2
+  <b>Needed for restoration</b>
+  Must preserve tiny pixel-level differences.
+end note
+
+@enduml

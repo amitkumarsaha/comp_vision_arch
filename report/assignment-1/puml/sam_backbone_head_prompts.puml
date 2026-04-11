@@ -1,0 +1,45 @@
+@startuml
+left to right direction
+skinparam backgroundColor white
+skinparam shadowing false
+skinparam dpi 180
+skinparam defaultFontName "Segoe UI"
+skinparam defaultFontSize 15
+skinparam ArrowColor #355C7D
+skinparam ArrowThickness 2
+skinparam rectangle {
+  RoundCorner 24
+  BorderColor #355C7D
+  BorderThickness 2
+  FontColor #1F2D3A
+}
+
+title Segment Anything Model (SAM) as Backbone + Head + Prompts
+
+rectangle "<size:18><b>Input Image</b></size>" as A #F7FBFF
+rectangle "<size:18><b>Image Encoder</b></size>\n<size:13>Backbone</size>" as B #DCEEFF
+rectangle "<size:18><b>Image Features</b></size>" as C #EEF6FF
+rectangle "<size:18><b>Mask Decoder</b></size>\n<size:13>Task-specific head</size>" as D #FFE9CC
+rectangle "<size:18><b>Segmentation Masks</b></size>" as E #FFF6E8
+
+rectangle "<size:18><b>Prompts</b></size>\n<size:13>Points / boxes / masks</size>" as P #EAF7EA
+rectangle "<size:18><b>Prompt Encoder</b></size>" as Q #DFF3E5
+
+A --> B
+B --> C
+C --> D
+D --> E
+P --> Q
+Q --> D
+
+note bottom of B
+  <b>Reusable image backbone</b>
+  Encodes the image once
+end note
+
+note bottom of D
+  <b>Flexible prediction head</b>
+  Produces masks conditioned on prompts
+end note
+
+@enduml

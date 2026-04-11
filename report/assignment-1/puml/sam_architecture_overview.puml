@@ -1,0 +1,57 @@
+@startuml
+left to right direction
+skinparam backgroundColor white
+skinparam shadowing false
+skinparam dpi 180
+skinparam defaultFontName "Segoe UI"
+skinparam defaultFontSize 15
+skinparam ArrowColor #355C7D
+skinparam ArrowThickness 2
+skinparam rectangle {
+  RoundCorner 24
+  BorderColor #355C7D
+  BorderThickness 2
+  FontColor #1F2D3A
+}
+skinparam note {
+  BorderColor #A9BBC8
+  BackgroundColor #F8FBFD
+  FontColor #3B4A55
+}
+skinparam DefaultTextAlignment center
+
+title Segment Anything Model (SAM) Architecture Overview - Backbone + prompts + mask prediction
+
+'rectangle "<size:20><b>SAM Architecture Overview</b></size>\n<size:13>Backbone + prompts + mask prediction</size>" as T #F7FBFF
+
+rectangle "<size:18><b>Input Image</b></size>\n<size:13>Full image</size>" as A #F7FBFF
+rectangle "<size:18><b>Image Encoder</b></size>\n<size:13>Vision backbone</size>" as B #DCEEFF
+rectangle "<size:18><b>Image Embeddings</b></size>\n<size:13>Reusable image features</size>" as C #EEF6FF
+rectangle "<size:18><b>Mask Decoder</b></size>\n<size:13>Task-specific head</size>" as D #FFE9CC
+rectangle "<size:18><b>Segmentation Masks</b></size>\n<size:13>Predicted outputs</size>" as E #FFF6E8
+
+rectangle "<size:18><b>Prompts</b></size>\n<size:13>Points / boxes / masks</size>" as P #EAF7EA
+rectangle "<size:18><b>Prompt Encoder</b></size>\n<size:13>Prompt features</size>" as Q #DFF3E5
+
+'T -[hidden]down-> A
+'T -[hidden]down-> P
+A -[hidden]-> P
+
+A --> B
+B --> C
+C --> D
+D --> E
+P --> Q
+Q --> D
+
+note bottom of B
+  <b>Reusable backbone</b>
+  Encodes the image once for many prompts.
+end note
+
+note bottom of D
+  <b>Prompt-conditioned head</b>
+  Combines image and prompt features to output masks.
+end note
+
+@enduml

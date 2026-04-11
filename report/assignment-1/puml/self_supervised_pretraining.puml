@@ -1,0 +1,38 @@
+@startuml
+left to right direction
+skinparam backgroundColor white
+skinparam shadowing false
+skinparam dpi 180
+skinparam defaultFontName "Segoe UI"
+skinparam defaultFontSize 15
+skinparam ArrowColor #355C7D
+skinparam ArrowThickness 2
+skinparam packageStyle rectangle
+skinparam rectangle {
+  RoundCorner 22
+  BorderColor #355C7D
+  BorderThickness 2
+  FontColor #1F2D3A
+}
+
+title Self-Supervised Pretraining\n<size:9>(No manual labels)</size>
+
+'rectangle "<size:18><b>Self-Supervised Pretraining</b></size>\n<size:13>No manual labels</size>" as U0 #EEF8F1
+rectangle "<size:16><b>Augmented View A</b></size>" as U1 #F6FCF8
+rectangle "<size:16><b>Backbone</b></size>\n<size:12>Shared or student</size>" as U2 #DFF3E5
+rectangle "<size:16><b>Objective</b></size>\n<size:12>Match views or teacher\npredictions</size>" as U3 #FFF6E8
+rectangle "<size:16><b>Augmented View B</b></size>" as U4 #F6FCF8
+
+'U0 -[hidden]down-> U1
+
+U1 --> U2
+U4 --> U2
+U2 --> U3
+
+note bottom of U3
+  <b>Training signal</b>
+  Consistency across views,
+  contrastive pairs, or teacher targets
+end note
+
+@enduml

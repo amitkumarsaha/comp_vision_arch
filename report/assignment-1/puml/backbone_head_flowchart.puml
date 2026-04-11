@@ -1,0 +1,41 @@
+@startuml
+left to right direction
+skinparam backgroundColor white
+skinparam shadowing false
+skinparam dpi 180
+skinparam defaultFontName "Segoe UI"
+skinparam defaultFontSize 16
+skinparam ArrowColor #355C7D
+skinparam ArrowThickness 2
+skinparam ArrowFontColor #1F2D3A
+skinparam rectangle {
+  RoundCorner 28
+  BorderColor #355C7D
+  BorderThickness 2
+  FontColor #1F2D3A
+}
+
+title Backbone + Head Design Pattern in Vision Models
+
+rectangle "<size:18><b>Input Image</b></size>\n<size:13>Raw visual input</size>" as A #F7FBFF
+rectangle "<size:18><b>Backbone</b></size>\n<size:13>e.g. ResNet or ViT</size>" as B #DCEEFF
+rectangle "<size:18><b>Feature Representation</b></size>\n<size:13>Reusable visual features</size>" as C #EEF6FF
+rectangle "<size:18><b>Task Head</b></size>\n<size:13>e.g. classifier, detector,\nor segmenter</size>" as D #FFE9CC
+rectangle "<size:18><b>Task Output</b></size>\n<size:13>Prediction for the task</size>" as E #FFF6E8
+
+A -[#355C7D,thickness=2]-> B
+B -[#355C7D,thickness=2]-> C
+C -[#355C7D,thickness=2]-> D
+D -[#355C7D,thickness=2]-> E
+
+note bottom of B
+  <b>Shared across many tasks</b>
+  Learns general visual features once
+end note
+
+note bottom of D
+  <b>Task-specific module</b>
+  Converts features into the final prediction
+end note
+
+@enduml

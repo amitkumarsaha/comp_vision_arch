@@ -1,0 +1,38 @@
+@startuml
+left to right direction
+skinparam backgroundColor white
+skinparam shadowing false
+skinparam dpi 180
+skinparam defaultFontName "Segoe UI"
+skinparam defaultFontSize 15
+skinparam ArrowColor #355C7D
+skinparam ArrowThickness 2
+skinparam packageStyle rectangle
+skinparam rectangle {
+  RoundCorner 22
+  BorderColor #355C7D
+  BorderThickness 2
+  FontColor #1F2D3A
+}
+
+title Supervised Pretraining\n<size:9>(Uses human labels)</size>
+
+
+'rectangle "<size:18><b>Supervised Pretraining</b></size>\n<size:13>Uses human labels</size>" as S0 #EAF4FF
+rectangle "<size:16><b>Image</b></size>" as S1 #F8FBFF
+rectangle "<size:16><b>Backbone</b></size>\n<size:12>ResNet / ViT</size>" as S2 #DCEEFF
+rectangle "<size:16><b>Head</b></size>\n<size:12>Classifier / detector</size>" as S3 #FFF1D9
+rectangle "<size:16><b>Loss</b></size>\n<size:12>Match labels, boxes,\nor masks</size>" as S4 #FFF6E8
+
+'S0 -[hidden]down-> S1
+
+S1 --> S2
+S2 --> S3
+S3 --> S4
+
+note bottom of S4
+  <b>Training signal</b>
+  External annotations
+end note
+
+@enduml
