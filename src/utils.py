@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import json
 import random
+from datetime import UTC, datetime
+from hashlib import sha256
 from pathlib import Path
 from typing import Any
 
@@ -30,6 +32,18 @@ def save_json(payload: dict[str, Any], path: str | Path) -> None:
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+
+
+def utc_timestamp() -> str:
+    return datetime.now(UTC).isoformat()
+
+
+def sha256_text(lines: list[str]) -> str:
+    digest = sha256()
+    for line in lines:
+        digest.update(line.encode("utf-8"))
+        digest.update(b"\n")
+    return digest.hexdigest()
 
 
 def count_trainable_parameters(model: torch.nn.Module) -> int:

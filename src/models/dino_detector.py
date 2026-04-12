@@ -22,8 +22,10 @@ class FrozenDinov2Backbone(nn.Module):
         super().__init__()
         self.model = Dinov2Model.from_pretrained(model_name)
         self.hidden_size = self.model.config.hidden_size
-        mean = torch.tensor(self.model.config.image_mean, dtype=torch.float32).view(1, 3, 1, 1)
-        std = torch.tensor(self.model.config.image_std, dtype=torch.float32).view(1, 3, 1, 1)
+        image_mean = getattr(self.model.config, "image_mean", [0.485, 0.456, 0.406])
+        image_std = getattr(self.model.config, "image_std", [0.229, 0.224, 0.225])
+        mean = torch.tensor(image_mean, dtype=torch.float32).view(1, 3, 1, 1)
+        std = torch.tensor(image_std, dtype=torch.float32).view(1, 3, 1, 1)
         self.register_buffer("image_mean", mean, persistent=False)
         self.register_buffer("image_std", std, persistent=False)
         for parameter in self.model.parameters():

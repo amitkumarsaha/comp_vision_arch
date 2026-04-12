@@ -18,6 +18,64 @@ class SampleMeta:
     resized_size: tuple[int, int]
 
 
+@dataclass
+class VOCDataPipeline:
+    train_data_root: str | Path
+    test_data_root: str | Path
+    image_size: int
+    batch_size: int
+    workers: int
+    subset_size: int | None
+    seed: int
+    _train_dataset: Dataset | None = None
+    _test_dataset: Dataset | None = None
+
+    @property
+    def pin_memory(self) -> bool:
+        return torch.cuda.is_available()
+
+    def train_dataset(self) -> Dataset:
+        if self._train_dataset is None:
+            dataset = VOCThreeClassDetection(
+                root=self.train_data_root,
+                image_set="trainval",
+                image_size=self.image_size,
+                download=False,
+            )
+            self._train_dataset = build_subset(dataset, subset_size=self.subset_size, seed=self.seed)
+        return self._train_dataset
+
+    def test_dataset(self) -> Dataset:
+        if self._test_dataset is None:
+            self._test_dataset = VOCThreeClassDetection(
+                root=self.test_data_root,
+                image_set="test",
+                image_size=self.image_size,
+                download=False,
+            )
+        return self._test_dataset
+
+    def train_loader(self) -> DataLoader:
+        return DataLoader(
+            self.train_dataset(),
+            batch_size=self.batch_size,
+            shuffle=True,
+            num_workers=self.workers,
+            collate_fn=collate_detection_batch,
+            pin_memory=self.pin_memory,
+        )
+
+    def test_loader(self, batch_size: int | None = None, workers: int | None = None) -> DataLoader:
+        return DataLoader(
+            self.test_dataset(),
+            batch_size=batch_size or self.batch_size,
+            shuffle=False,
+            num_workers=self.workers if workers is None else workers,
+            collate_fn=collate_detection_batch,
+            pin_memory=self.pin_memory,
+        )
+
+
 class VOCThreeClassDetection(Dataset):
     def __init__(
         self,
@@ -114,42 +172,45 @@ def build_subset(dataset: Dataset, subset_size: int | None, seed: int) -> Datase
 
 
 def build_dataloaders(
-    data_root: str | Path,
+    train_data_root: str | Path,
+    test_data_root: str | Path,
     image_size: int,
     batch_size: int,
     workers: int,
     subset_size: int | None,
     seed: int,
 ):
-    train_dataset = VOCThreeClassDetection(
-        root=data_root,
-        image_set="trainval",
+    pipeline = build_data_pipeline(
+        train_data_root=train_data_root,
+        test_data_root=test_data_root,
         image_size=image_size,
-        download=True,
-    )
-    test_dataset = VOCThreeClassDetection(
-        root=data_root,
-        image_set="test",
-        image_size=image_size,
-        download=True,
-    )
-
-    train_dataset = build_subset(train_dataset, subset_size=subset_size, seed=seed)
-
-    train_loader = DataLoader(
-        train_dataset,
         batch_size=batch_size,
-        shuffle=True,
-        num_workers=workers,
-        collate_fn=collate_detection_batch,
-        pin_memory=True,
+        workers=workers,
+        subset_size=subset_size,
+        seed=seed,
     )
-    test_loader = DataLoader(
-        test_dataset,
-        batch_size=batch_size,
-        shuffle=False,
-        num_workers=workers,
-        collate_fn=collate_detection_batch,
-        pin_memory=True,
-    )
+    train_dataset = pipeline.train_dataset()
+    test_dataset = pipeline.test_dataset()
+    train_loader = pipeline.train_loader()
+    test_loader = pipeline.test_loader()
     return train_dataset, test_dataset, train_loader, test_loader
+
+
+def build_data_pipeline(
+    train_data_root: str | Path,
+    test_data_root: str | Path,
+    image_size: int,
+    batch_size: int,
+    workers: int,
+    subset_size: int | None,
+    seed: int,
+) -> VOCDataPipeline:
+    return VOCDataPipeline(
+        train_data_root=train_data_root,
+        test_data_root=test_data_root,
+        image_size=image_size,
+        batch_size=batch_size,
+        workers=workers,
+        subset_size=subset_size,
+        seed=seed,
+    )

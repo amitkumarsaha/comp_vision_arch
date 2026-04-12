@@ -20,9 +20,10 @@ pip install -r requirements.txt
 ## Train the DINO detector
 
 ```powershell
-python -m src.assignment2.train `
+python -m src.train `
   --model dino `
-  --data-root .\data `
+  --train-data-root .\data\train-validation-data `
+  --test-data-root .\data\test-data `
   --output-dir .\outputs\dino `
   --subset-size 1000 `
   --epochs 10 `
@@ -32,9 +33,10 @@ python -m src.assignment2.train `
 ## Train the Faster R-CNN baseline
 
 ```powershell
-python -m src.assignment2.train `
+python -m src.train `
   --model fasterrcnn `
-  --data-root .\data `
+  --train-data-root .\data\train-validation-data `
+  --test-data-root .\data\test-data `
   --output-dir .\outputs\fasterrcnn `
   --subset-size 1000 `
   --epochs 8 `
@@ -44,18 +46,20 @@ python -m src.assignment2.train `
 ## Evaluate a checkpoint
 
 ```powershell
-python -m src.assignment2.evaluate `
+python -m src.evaluate `
   --model dino `
-  --data-root .\data `
+  --train-data-root .\data\train-validation-data `
+  --test-data-root .\data\test-data `
   --checkpoint .\outputs\dino\best.pt
 ```
 
 ## Export qualitative predictions
 
 ```powershell
-python -m src.assignment2.visualize `
+python -m src.visualize `
   --model fasterrcnn `
-  --data-root .\data `
+  --train-data-root .\data\train-validation-data `
+  --test-data-root .\data\test-data `
   --checkpoint .\outputs\fasterrcnn\best.pt `
   --output-dir .\outputs\viz\fasterrcnn `
   --num-images 3
@@ -64,6 +68,25 @@ python -m src.assignment2.visualize `
 ## Notes
 
 - The DINO-based model keeps the pretrained backbone frozen by default.
+- The training split is loaded from `data/train-validation-data` and the official VOC2007 test split from `data/test-data`.
 - The Faster R-CNN baseline fine-tunes a supervised detector on the exact same train subset and test split.
 - All metrics are computed on the **same test split** and **same three classes**.
 - If your hardware is limited, keep `--subset-size` around `500-1000` and use mixed precision when CUDA is available.
+
+## Audit Trail
+
+Each training, evaluation, and visualization run writes machine-readable audit records so the experiment can be verified later.
+
+- Training writes `audit/run_manifest.json`, `audit/dataset_manifest.json`, `audit/training_progress.json`, `audit/best_checkpoint.json`, and `audit/training_summary.json` inside the model output directory.
+- Evaluation writes `audit/evaluation_run_manifest.json`, `audit/evaluation_dataset_manifest.json`, and `audit/evaluation_report.json` next to the checkpoint output directory.
+- Visualization writes `audit/visualization_run_manifest.json`, `audit/visualization_dataset_manifest.json`, and `audit/visualization_manifest.json` inside the visualization output directory.
+
+The dataset manifests include the exact filtered image ids and SHA-256 digests for the train and test sets, which makes it easy to verify that the same test set was used across models.
+
+If you prefer running scripts directly, these also work now:
+
+```powershell
+python .\src\train.py --model dino --train-data-root .\data\train-validation-data --test-data-root .\data\test-data --output-dir .\outputs\dino
+python .\src\evaluate.py --model dino --train-data-root .\data\train-validation-data --test-data-root .\data\test-data --checkpoint .\outputs\dino\best.pt
+python .\src\visualize.py --model dino --train-data-root .\data\train-validation-data --test-data-root .\data\test-data --checkpoint .\outputs\dino\best.pt --output-dir .\outputs\viz\dino
+```

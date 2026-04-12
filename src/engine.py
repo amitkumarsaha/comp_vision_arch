@@ -44,11 +44,16 @@ def _extract_predictions(output):
     raise TypeError("Unsupported model output for prediction extraction.")
 
 
-def train_one_epoch(model, loader, optimizer, device: torch.device, scaler=None):
+def _format_metric_postfix(metrics: dict[str, float]) -> dict[str, str]:
+    return {key: f"{value:.4f}" for key, value in metrics.items()}
+
+
+def train_one_epoch(model, loader, optimizer, device: torch.device, scaler=None, desc: str = "train"):
     model.train()
     running = defaultdict(float)
+    progress = tqdm(loader, desc=desc, leave=True, dynamic_ncols=True)
 
-    for images, targets, _meta in tqdm(loader, desc="train", leave=False):
+    for step, (images, targets, _meta) in enumerate(progress, start=1):
         images = [image.to(device) for image in images]
         targets = move_targets_to_device(targets, device)
         optimizer.zero_grad(set_to_none=True)
@@ -68,18 +73,21 @@ def train_one_epoch(model, loader, optimizer, device: torch.device, scaler=None)
 
         for key, value in _extract_loss_dict(output).items():
             running[key] += float(value.detach().item())
+        averaged = {key: value / step for key, value in running.items()}
+        progress.set_postfix(_format_metric_postfix(averaged))
 
     total_steps = max(len(loader), 1)
     return {key: value / total_steps for key, value in running.items()}
 
 
 @torch.inference_mode()
-def evaluate_model(model, loader, device: torch.device):
+def evaluate_model(model, loader, device: torch.device, desc: str = "eval"):
     model.eval()
     predictions = []
     targets = []
+    progress = tqdm(loader, desc=desc, leave=True, dynamic_ncols=True)
 
-    for images, batch_targets, _meta in tqdm(loader, desc="eval", leave=False):
+    for step, (images, batch_targets, _meta) in enumerate(progress, start=1):
         images = [image.to(device) for image in images]
         moved_targets = move_targets_to_device(batch_targets, device)
         output = model(images, moved_targets)
@@ -89,5 +97,6 @@ def evaluate_model(model, loader, device: torch.device):
             predictions.append({key: value.detach().cpu() for key, value in pred.items()})
         for target in batch_targets:
             targets.append({key: value.detach().cpu() if isinstance(value, torch.Tensor) else value for key, value in target.items()})
+        progress.set_postfix({"images": str(len(predictions)), "batches": str(step)})
 
     return mean_average_precision(predictions=predictions, targets=targets)
