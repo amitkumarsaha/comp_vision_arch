@@ -24,7 +24,7 @@ class DinoDetectorOutput:
 class FrozenDinov2Backbone(nn.Module):
     def __init__(self, model_name: str = "facebook/dinov2-small") -> None:
         super().__init__()
-        self.model = Dinov2Model.from_pretrained(model_name)
+        self.model = Dinov2Model.from_pretrained(model_name, attn_implementation="eager")
         self.hidden_size = self.model.config.hidden_size
         image_mean = getattr(self.model.config, "image_mean", [0.485, 0.456, 0.406])
         image_std = getattr(self.model.config, "image_std", [0.229, 0.224, 0.225])
