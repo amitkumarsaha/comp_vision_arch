@@ -12,11 +12,17 @@ from tqdm import tqdm
 
 if __package__ in (None, ""):
     sys.path.append(str(Path(__file__).resolve().parent.parent))
-    from src.core.runtime import AuditLogger, DataConfig, DataPipelineManager, ModelFactory, RuntimeEnvironment
+    try:
+        from src.core.runtime import AuditLogger, DataConfig, DataPipelineManager, ModelFactory, RuntimeEnvironment
+    except ModuleNotFoundError:
+        from src.runtime import AuditLogger, DataConfig, DataPipelineManager, ModelFactory, RuntimeEnvironment
     from src.engine import evaluate_model, train_one_epoch
     from src.utils import count_trainable_parameters, save_json, seed_everything, utc_timestamp
 else:
-    from .core.runtime import AuditLogger, DataConfig, DataPipelineManager, ModelFactory, RuntimeEnvironment
+    try:
+        from .core.runtime import AuditLogger, DataConfig, DataPipelineManager, ModelFactory, RuntimeEnvironment
+    except ModuleNotFoundError:
+        from .runtime import AuditLogger, DataConfig, DataPipelineManager, ModelFactory, RuntimeEnvironment
     from .engine import evaluate_model, train_one_epoch
     from .utils import count_trainable_parameters, save_json, seed_everything, utc_timestamp
 

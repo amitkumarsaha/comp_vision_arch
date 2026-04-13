@@ -7,11 +7,17 @@ from pathlib import Path
 
 if __package__ in (None, ""):
     sys.path.append(str(Path(__file__).resolve().parent.parent))
-    from src.core.runtime import AuditLogger, DataConfig, DataPipelineManager, ModelFactory, RuntimeEnvironment
+    try:
+        from src.core.runtime import AuditLogger, DataConfig, DataPipelineManager, ModelFactory, RuntimeEnvironment
+    except ModuleNotFoundError:
+        from src.runtime import AuditLogger, DataConfig, DataPipelineManager, ModelFactory, RuntimeEnvironment
     from src.engine import evaluate_losses, evaluate_model
     from src.utils import utc_timestamp
 else:
-    from .core.runtime import AuditLogger, DataConfig, DataPipelineManager, ModelFactory, RuntimeEnvironment
+    try:
+        from .core.runtime import AuditLogger, DataConfig, DataPipelineManager, ModelFactory, RuntimeEnvironment
+    except ModuleNotFoundError:
+        from .runtime import AuditLogger, DataConfig, DataPipelineManager, ModelFactory, RuntimeEnvironment
     from .engine import evaluate_losses, evaluate_model
     from .utils import utc_timestamp
 

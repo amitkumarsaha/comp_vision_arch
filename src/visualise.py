@@ -9,11 +9,17 @@ import torch
 
 if __package__ in (None, ""):
     sys.path.append(str(Path(__file__).resolve().parent.parent))
-    from src.core.runtime import AuditLogger, DataConfig, DataPipelineManager, ModelFactory, RuntimeEnvironment
+    try:
+        from src.core.runtime import AuditLogger, DataConfig, DataPipelineManager, ModelFactory, RuntimeEnvironment
+    except ModuleNotFoundError:
+        from src.runtime import AuditLogger, DataConfig, DataPipelineManager, ModelFactory, RuntimeEnvironment
     from src.utils import utc_timestamp
     from src.visualization.rendering import PredictionAdapter, PredictionRenderer
 else:
-    from .core.runtime import AuditLogger, DataConfig, DataPipelineManager, ModelFactory, RuntimeEnvironment
+    try:
+        from .core.runtime import AuditLogger, DataConfig, DataPipelineManager, ModelFactory, RuntimeEnvironment
+    except ModuleNotFoundError:
+        from .runtime import AuditLogger, DataConfig, DataPipelineManager, ModelFactory, RuntimeEnvironment
     from .utils import utc_timestamp
     from .visualization.rendering import PredictionAdapter, PredictionRenderer
 
