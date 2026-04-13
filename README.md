@@ -39,8 +39,8 @@ python -m src.train `
   --test-data-root .\data\test-data `
   --output-dir .\outputs\fasterrcnn `
   --subset-size 1000 `
-  --epochs 8 `
-  --batch-size 2
+  --epochs 10 `
+  --batch-size 4
 ```
 
 ## Evaluate a checkpoint
