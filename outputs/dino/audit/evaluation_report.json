@@ -1,0 +1,10 @@
+{
+  "timestamp_utc": "2026-04-13T09:36:56.958129+00:00",
+  "checkpoint_path": "C:\\Users\\Amit\\Projects\\github\\advanced-ml\\outputs\\dino\\best.pt",
+  "metrics": {
+    "person": 0.0,
+    "car": 0.0,
+    "dog": 0.0,
+    "mAP@0.5": 0.0
+  }
+}
