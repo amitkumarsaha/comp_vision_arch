@@ -17,6 +17,21 @@ python -m venv .venv
 pip install -r requirements.txt
 ```
 
+## Interactive Menu
+
+You can launch the project menu from the repository root:
+
+```powershell
+python .\main.py
+```
+
+The menu provides:
+
+- `1. Visualise`: runs the existing visualization flow, including DINO vs Faster R-CNN comparison images
+- `2. Evaluate`: evaluates both models and reports average detection losses plus `mAP@0.5`
+- `3. Report`: displays saved model setup, dataset, training, and evaluation details from the audit trail
+- `4. Train Models`: prompts for model selection and training parameters, using defaults when left blank
+
 ## Train the DINO detector
 
 ```powershell
@@ -65,6 +80,18 @@ python -m src.visualize `
   --num-images 3
 ```
 
+## Export side-by-side comparison figures
+
+```powershell
+python -m src.visualize `
+  --dino-checkpoint .\outputs\dino\best.pt `
+  --fasterrcnn-checkpoint .\outputs\fasterrcnn\best.pt `
+  --train-data-root .\data\train-validation-data `
+  --test-data-root .\data\test-data `
+  --output-dir .\outputs\viz\comparison `
+  --num-images 3
+```
+
 ## Notes
 
 - The DINO-based model keeps the pretrained backbone frozen by default.
@@ -89,4 +116,5 @@ If you prefer running scripts directly, these also work now:
 python .\src\train.py --model dino --train-data-root .\data\train-validation-data --test-data-root .\data\test-data --output-dir .\outputs\dino
 python .\src\evaluate.py --model dino --train-data-root .\data\train-validation-data --test-data-root .\data\test-data --checkpoint .\outputs\dino\best.pt
 python .\src\visualize.py --model dino --train-data-root .\data\train-validation-data --test-data-root .\data\test-data --checkpoint .\outputs\dino\best.pt --output-dir .\outputs\viz\dino
+python .\src\visualize.py --dino-checkpoint .\outputs\dino\best.pt --fasterrcnn-checkpoint .\outputs\fasterrcnn\best.pt --train-data-root .\data\train-validation-data --test-data-root .\data\test-data --output-dir .\outputs\viz\comparison
 ```

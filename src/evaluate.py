@@ -2,25 +2,29 @@ from __future__ import annotations
 
 import argparse
 import sys
+from dataclasses import dataclass
 from pathlib import Path
-
-import torch
 
 if __package__ in (None, ""):
     sys.path.append(str(Path(__file__).resolve().parent.parent))
-    from src.audit import build_dataset_audit, build_runtime_audit, write_audit_record
-    from src.data import build_data_pipeline
-    from src.engine import evaluate_model
-    from src.models.dino_detector import DinoGridDetector
-    from src.models.faster_rcnn import build_faster_rcnn
-    from src.utils import ensure_dir, utc_timestamp
+    from src.core.runtime import AuditLogger, DataConfig, DataPipelineManager, ModelFactory, RuntimeEnvironment
+    from src.engine import evaluate_losses, evaluate_model
+    from src.utils import utc_timestamp
 else:
-    from .audit import build_dataset_audit, build_runtime_audit, write_audit_record
-    from .data import build_data_pipeline
-    from .engine import evaluate_model
-    from .models.dino_detector import DinoGridDetector
-    from .models.faster_rcnn import build_faster_rcnn
-    from .utils import ensure_dir, utc_timestamp
+    from .core.runtime import AuditLogger, DataConfig, DataPipelineManager, ModelFactory, RuntimeEnvironment
+    from .engine import evaluate_losses, evaluate_model
+    from .utils import utc_timestamp
+
+
+@dataclass(frozen=True)
+class EvaluationConfig:
+    model: str
+    train_data_root: str
+    test_data_root: str
+    checkpoint: str
+    image_size: int
+    batch_size: int
+    workers: int
 
 
 def parse_args():
@@ -35,54 +39,67 @@ def parse_args():
     return parser.parse_args()
 
 
-def build_model(model_name: str, image_size: int):
-    if model_name == "dino":
-        return DinoGridDetector(image_size=image_size)
-    return build_faster_rcnn()
+class EvaluationApp:
+    def __init__(self, config: EvaluationConfig) -> None:
+        self.config = config
+        self.runtime = RuntimeEnvironment()
+        self.model, _checkpoint = ModelFactory.load_checkpoint(
+            config.model,
+            checkpoint_path=config.checkpoint,
+            image_size=config.image_size,
+            device=self.runtime.device,
+        )
+        self.audit = AuditLogger(Path(config.checkpoint).resolve().parent)
+        self.data = DataPipelineManager(
+            DataConfig(
+                train_data_root=config.train_data_root,
+                test_data_root=config.test_data_root,
+                image_size=config.image_size,
+                batch_size=config.batch_size,
+                workers=config.workers,
+                subset_size=None,
+                seed=42,
+            )
+        )
+
+    def run(self) -> None:
+        test_dataset = self.data.test_dataset()
+        test_loader = self.data.test_loader()
+        losses = evaluate_losses(self.model, test_loader, self.runtime.device, desc=f"{self.config.model} loss")
+        metrics = evaluate_model(self.model, test_loader, self.runtime.device, desc=f"{self.config.model} eval")
+
+        self.audit.write_runtime("evaluation_run_manifest.json", self.config, self.model, self.runtime.device)
+        self.audit.write_dataset(
+            "evaluation_dataset_manifest.json",
+            test_dataset=test_dataset,
+            test_root=self.config.test_data_root,
+            subset_size=None,
+            seed=42,
+        )
+        self.audit.write_record(
+            "evaluation_report.json",
+            {
+                "timestamp_utc": utc_timestamp(),
+                "checkpoint_path": str(Path(self.config.checkpoint).resolve()),
+                "losses": losses,
+                "metrics": metrics,
+            },
+        )
+        print({"losses": losses, "metrics": metrics})
 
 
 def main():
     args = parse_args()
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    model = build_model(args.model, args.image_size)
-    checkpoint = torch.load(args.checkpoint, map_location="cpu")
-    model.load_state_dict(checkpoint["state_dict"])
-    model.to(device)
-    output_dir = ensure_dir(Path(args.checkpoint).resolve().parent)
-
-    pipeline = build_data_pipeline(
+    config = EvaluationConfig(
+        model=args.model,
         train_data_root=args.train_data_root,
         test_data_root=args.test_data_root,
+        checkpoint=args.checkpoint,
         image_size=args.image_size,
         batch_size=args.batch_size,
         workers=args.workers,
-        subset_size=None,
-        seed=42,
     )
-    test_dataset = pipeline.test_dataset()
-    test_loader = pipeline.test_loader()
-    metrics = evaluate_model(model, test_loader, device)
-    write_audit_record(output_dir, "evaluation_run_manifest.json", build_runtime_audit(args, model, device))
-    write_audit_record(
-        output_dir,
-        "evaluation_dataset_manifest.json",
-        build_dataset_audit(
-            test_dataset=test_dataset,
-            test_root=args.test_data_root,
-            subset_size=None,
-            seed=42,
-        ),
-    )
-    write_audit_record(
-        output_dir,
-        "evaluation_report.json",
-        {
-            "timestamp_utc": utc_timestamp(),
-            "checkpoint_path": str(Path(args.checkpoint).resolve()),
-            "metrics": metrics,
-        },
-    )
-    print(metrics)
+    EvaluationApp(config).run()
 
 
 if __name__ == "__main__":

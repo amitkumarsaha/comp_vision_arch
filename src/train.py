@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import sys
 import time
+from dataclasses import asdict, dataclass
 from datetime import datetime
 from pathlib import Path
 
@@ -11,19 +12,30 @@ from tqdm import tqdm
 
 if __package__ in (None, ""):
     sys.path.append(str(Path(__file__).resolve().parent.parent))
-    from src.audit import build_dataset_audit, build_runtime_audit, write_audit_record
-    from src.data import build_data_pipeline
+    from src.core.runtime import AuditLogger, DataConfig, DataPipelineManager, ModelFactory, RuntimeEnvironment
     from src.engine import evaluate_model, train_one_epoch
-    from src.models.dino_detector import DinoGridDetector
-    from src.models.faster_rcnn import build_faster_rcnn
-    from src.utils import count_trainable_parameters, ensure_dir, save_json, seed_everything, utc_timestamp
+    from src.utils import count_trainable_parameters, save_json, seed_everything, utc_timestamp
 else:
-    from .audit import build_dataset_audit, build_runtime_audit, write_audit_record
-    from .data import build_data_pipeline
+    from .core.runtime import AuditLogger, DataConfig, DataPipelineManager, ModelFactory, RuntimeEnvironment
     from .engine import evaluate_model, train_one_epoch
-    from .models.dino_detector import DinoGridDetector
-    from .models.faster_rcnn import build_faster_rcnn
-    from .utils import count_trainable_parameters, ensure_dir, save_json, seed_everything, utc_timestamp
+    from .utils import count_trainable_parameters, save_json, seed_everything, utc_timestamp
+
+
+@dataclass(frozen=True)
+class TrainConfig:
+    model: str
+    train_data_root: str
+    test_data_root: str
+    output_dir: str
+    subset_size: int | None
+    epochs: int
+    batch_size: int
+    workers: int
+    image_size: int
+    learning_rate: float
+    weight_decay: float
+    seed: int
+    freeze_fasterrcnn_backbone: bool
 
 
 def parse_args():
@@ -44,12 +56,6 @@ def parse_args():
     return parser.parse_args()
 
 
-def build_model(args):
-    if args.model == "dino":
-        return DinoGridDetector(image_size=args.image_size)
-    return build_faster_rcnn(train_backbone=not args.freeze_fasterrcnn_backbone)
-
-
 def format_duration(seconds: float) -> str:
     total_seconds = max(int(seconds), 0)
     hours, remainder = divmod(total_seconds, 3600)
@@ -65,94 +71,102 @@ def format_dt(timestamp: float) -> str:
     return datetime.fromtimestamp(timestamp).strftime("%Y-%m-%d %H:%M:%S")
 
 
-def main():
-    args = parse_args()
-    seed_everything(args.seed)
-    output_dir = ensure_dir(args.output_dir)
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+class TrainingApp:
+    def __init__(self, config: TrainConfig) -> None:
+        self.config = config
+        seed_everything(config.seed)
+        self.runtime = RuntimeEnvironment()
+        self.data = DataPipelineManager(
+            DataConfig(
+                train_data_root=config.train_data_root,
+                test_data_root=config.test_data_root,
+                image_size=config.image_size,
+                batch_size=config.batch_size,
+                workers=config.workers,
+                subset_size=config.subset_size,
+                seed=config.seed,
+            )
+        )
+        self.audit = AuditLogger(config.output_dir)
+        self.model = ModelFactory.build(
+            config.model,
+            image_size=config.image_size,
+            freeze_fasterrcnn_backbone=config.freeze_fasterrcnn_backbone,
+        ).to(self.runtime.device)
+        self.optimizer = torch.optim.AdamW(
+            [parameter for parameter in self.model.parameters() if parameter.requires_grad],
+            lr=config.learning_rate,
+            weight_decay=config.weight_decay,
+        )
+        self.scaler = torch.amp.GradScaler(self.runtime.device.type, enabled=self.runtime.device.type == "cuda")
 
-    pipeline = build_data_pipeline(
-        train_data_root=args.train_data_root,
-        test_data_root=args.test_data_root,
-        image_size=args.image_size,
-        batch_size=args.batch_size,
-        workers=args.workers,
-        subset_size=args.subset_size,
-        seed=args.seed,
-    )
-    train_dataset = pipeline.train_dataset()
-    test_dataset = pipeline.test_dataset()
-    train_loader = pipeline.train_loader()
-    test_loader = pipeline.test_loader()
+    def run(self) -> None:
+        train_dataset = self.data.train_dataset()
+        test_dataset = self.data.test_dataset()
+        train_loader = self.data.train_loader()
+        test_loader = self.data.test_loader()
 
-    model = build_model(args).to(device)
-    write_audit_record(output_dir, "run_manifest.json", build_runtime_audit(args, model, device))
-    write_audit_record(
-        output_dir,
-        "dataset_manifest.json",
-        build_dataset_audit(
+        self.audit.write_runtime("run_manifest.json", self.config, self.model, self.runtime.device)
+        self.audit.write_dataset(
+            "dataset_manifest.json",
             train_dataset=train_dataset,
             test_dataset=test_dataset,
-            train_root=args.train_data_root,
-            test_root=args.test_data_root,
-            subset_size=args.subset_size,
-            seed=args.seed,
-        ),
-    )
-
-    optimizer = torch.optim.AdamW(
-        [parameter for parameter in model.parameters() if parameter.requires_grad],
-        lr=args.learning_rate,
-        weight_decay=args.weight_decay,
-    )
-    scaler = torch.amp.GradScaler(device.type, enabled=device.type == "cuda")
-
-    best_map = -1.0
-    history = []
-    epoch_durations = []
-    run_start = time.time()
-    tqdm.write(f"Training started: {format_dt(run_start)}")
-    tqdm.write(
-        f"Config: model={args.model}, device={device}, train_images={len(train_dataset)}, "
-        f"test_images={len(test_dataset)}, epochs={args.epochs}, batch_size={args.batch_size}"
-    )
-
-    for epoch in range(1, args.epochs + 1):
-        epoch_start = time.time()
-        tqdm.write(f"Epoch {epoch}/{args.epochs} started: {format_dt(epoch_start)}")
-        train_metrics = train_one_epoch(
-            model=model,
-            loader=train_loader,
-            optimizer=optimizer,
-            device=device,
-            scaler=scaler,
-            desc=f"train {epoch}/{args.epochs}",
+            train_root=self.config.train_data_root,
+            test_root=self.config.test_data_root,
+            subset_size=self.config.subset_size,
+            seed=self.config.seed,
         )
-        eval_metrics = evaluate_model(
-            model=model,
-            loader=test_loader,
-            device=device,
-            desc=f"eval {epoch}/{args.epochs}",
+
+        best_map = -1.0
+        history = []
+        epoch_durations = []
+        run_start = time.time()
+        tqdm.write(f"Training started: {format_dt(run_start)}")
+        tqdm.write(
+            f"Config: model={self.config.model}, device={self.runtime.device}, train_images={len(train_dataset)}, "
+            f"test_images={len(test_dataset)}, epochs={self.config.epochs}, batch_size={self.config.batch_size}"
         )
-        epoch_duration = time.time() - epoch_start
-        epoch_durations.append(epoch_duration)
+
+        for epoch in range(1, self.config.epochs + 1):
+            epoch_start = time.time()
+            tqdm.write(f"Epoch {epoch}/{self.config.epochs} started: {format_dt(epoch_start)}")
+            train_metrics = train_one_epoch(
+                model=self.model,
+                loader=train_loader,
+                optimizer=self.optimizer,
+                device=self.runtime.device,
+                scaler=self.scaler,
+                desc=f"train {epoch}/{self.config.epochs}",
+            )
+            eval_metrics = evaluate_model(
+                model=self.model,
+                loader=test_loader,
+                device=self.runtime.device,
+                desc=f"eval {epoch}/{self.config.epochs}",
+            )
+            epoch_duration = time.time() - epoch_start
+            epoch_durations.append(epoch_duration)
+            best_map = self._record_epoch(epoch, train_metrics, eval_metrics, best_map, history, epoch_durations)
+
+        self._write_summary(train_dataset, test_dataset, history, best_map, run_start)
+
+    def _record_epoch(self, epoch: int, train_metrics: dict, eval_metrics: dict, best_map: float, history: list, epoch_durations: list[float]) -> float:
         avg_epoch_seconds = sum(epoch_durations) / len(epoch_durations)
-        remaining_epochs = args.epochs - epoch
+        remaining_epochs = self.config.epochs - epoch
         eta_timestamp = time.time() + (avg_epoch_seconds * remaining_epochs)
         row = {"epoch": epoch, "train": train_metrics, "eval": eval_metrics}
         history.append(row)
         tqdm.write(
-            f"Epoch {epoch}/{args.epochs} done in {format_duration(epoch_duration)} | "
+            f"Epoch {epoch}/{self.config.epochs} done in {format_duration(epoch_durations[-1])} | "
             f"loss={train_metrics.get('loss', 0.0):.4f} | "
             f"mAP@0.5={eval_metrics.get('mAP@0.5', 0.0):.4f} | "
             f"ETA completion: {format_dt(eta_timestamp)}"
         )
-        write_audit_record(
-            output_dir,
+        self.audit.write_record(
             "training_progress.json",
             {
                 "timestamp_utc": utc_timestamp(),
-                "model": args.model,
+                "model": self.config.model,
                 "history": history,
                 "best_map_50": best_map,
                 "epoch_durations_seconds": epoch_durations,
@@ -162,18 +176,18 @@ def main():
 
         if eval_metrics["mAP@0.5"] > best_map:
             best_map = eval_metrics["mAP@0.5"]
-            checkpoint_path = output_dir / "best.pt"
+            checkpoint_path = self.audit.output_dir / "best.pt"
             torch.save(
                 {
-                    "model_name": args.model,
-                    "args": vars(args),
-                    "state_dict": model.state_dict(),
+                    "model_name": self.config.model,
+                    "args": asdict(self.config),
+                    "head_version": getattr(self.model, "checkpoint_version", "unknown"),
+                    "state_dict": self.model.state_dict(),
                     "eval_metrics": eval_metrics,
                 },
                 checkpoint_path,
             )
-            write_audit_record(
-                output_dir,
+            self.audit.write_record(
                 "best_checkpoint.json",
                 {
                     "timestamp_utc": utc_timestamp(),
@@ -182,30 +196,52 @@ def main():
                     "eval_metrics": eval_metrics,
                 },
             )
+        return best_map
 
-    summary = {
-        "model": args.model,
-        "train_images": len(train_dataset),
-        "test_images": len(test_dataset),
-        "trainable_parameters": count_trainable_parameters(model),
-        "best_map_50": best_map,
-        "history": history,
-    }
-    save_json(summary, output_dir / "summary.json")
-    write_audit_record(
-        output_dir,
-        "training_summary.json",
-        {
-            "timestamp_utc": utc_timestamp(),
-            "summary_path": str((output_dir / "summary.json").resolve()),
-            "summary": summary,
-        },
+    def _write_summary(self, train_dataset, test_dataset, history: list, best_map: float, run_start: float) -> None:
+        summary = {
+            "model": self.config.model,
+            "train_images": len(train_dataset),
+            "test_images": len(test_dataset),
+            "trainable_parameters": count_trainable_parameters(self.model),
+            "best_map_50": best_map,
+            "history": history,
+        }
+        summary_path = self.audit.output_dir / "summary.json"
+        save_json(summary, summary_path)
+        self.audit.write_record(
+            "training_summary.json",
+            {
+                "timestamp_utc": utc_timestamp(),
+                "summary_path": str(summary_path.resolve()),
+                "summary": summary,
+            },
+        )
+        run_end = time.time()
+        tqdm.write(
+            f"Training finished: {format_dt(run_end)} | total elapsed: {format_duration(run_end - run_start)} | "
+            f"best mAP@0.5={best_map:.4f}"
+        )
+
+
+def main():
+    args = parse_args()
+    config = TrainConfig(
+        model=args.model,
+        train_data_root=args.train_data_root,
+        test_data_root=args.test_data_root,
+        output_dir=args.output_dir,
+        subset_size=args.subset_size,
+        epochs=args.epochs,
+        batch_size=args.batch_size,
+        workers=args.workers,
+        image_size=args.image_size,
+        learning_rate=args.learning_rate,
+        weight_decay=args.weight_decay,
+        seed=args.seed,
+        freeze_fasterrcnn_backbone=args.freeze_fasterrcnn_backbone,
     )
-    run_end = time.time()
-    tqdm.write(
-        f"Training finished: {format_dt(run_end)} | total elapsed: {format_duration(run_end - run_start)} | "
-        f"best mAP@0.5={best_map:.4f}"
-    )
+    TrainingApp(config).run()
 
 
 if __name__ == "__main__":

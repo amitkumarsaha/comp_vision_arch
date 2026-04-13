@@ -1,5 +1,5 @@
 {
-  "timestamp_utc": "2026-04-13T09:36:53.489409+00:00",
+  "timestamp_utc": "2026-04-13T20:16:42.702817+00:00",
   "model": "dino",
   "device": "cpu",
   "python": "3.14.0",
@@ -9,9 +9,9 @@
   "cuda_device_count": 0,
   "config": {
     "model": "dino",
-    "train_data_root": "C:\\Users\\Amit\\Projects\\github\\advanced-ml\\data\\train-validation-data",
-    "test_data_root": "C:\\Users\\Amit\\Projects\\github\\advanced-ml\\data\\test-data",
-    "checkpoint": "C:\\Users\\Amit\\Projects\\github\\advanced-ml\\outputs\\dino\\best.pt",
+    "train_data_root": "data\\train-validation-data",
+    "test_data_root": "data\\test-data",
+    "checkpoint": "outputs\\dino\\best.pt",
     "image_size": 448,
     "batch_size": 4,
     "workers": 2

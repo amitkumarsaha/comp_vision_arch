@@ -44,6 +44,10 @@ def _extract_predictions(output):
     raise TypeError("Unsupported model output for prediction extraction.")
 
 
+def _supports_joint_eval_losses(output) -> bool:
+    return hasattr(output, "losses") and output.losses is not None
+
+
 def _format_metric_postfix(metrics: dict[str, float]) -> dict[str, str]:
     return {key: f"{value:.4f}" for key, value in metrics.items()}
 
@@ -100,3 +104,30 @@ def evaluate_model(model, loader, device: torch.device, desc: str = "eval"):
         progress.set_postfix({"images": str(len(predictions)), "batches": str(step)})
 
     return mean_average_precision(predictions=predictions, targets=targets)
+
+
+@torch.inference_mode()
+def evaluate_losses(model, loader, device: torch.device, desc: str = "eval-loss"):
+    running = defaultdict(float)
+    progress = tqdm(loader, desc=desc, leave=True, dynamic_ncols=True)
+
+    for step, (images, batch_targets, _meta) in enumerate(progress, start=1):
+        images = [image.to(device) for image in images]
+        moved_targets = move_targets_to_device(batch_targets, device)
+        model.eval()
+        output = model(images, moved_targets)
+
+        if _supports_joint_eval_losses(output):
+            loss_dict = _extract_loss_dict(output)
+        else:
+            model.train()
+            output = model(images, moved_targets)
+            loss_dict = _extract_loss_dict(output)
+
+        for key, value in loss_dict.items():
+            running[key] += float(value.detach().item())
+        averaged = {key: value / step for key, value in running.items()}
+        progress.set_postfix(_format_metric_postfix(averaged))
+
+    total_steps = max(len(loader), 1)
+    return {key: value / total_steps for key, value in running.items()}
