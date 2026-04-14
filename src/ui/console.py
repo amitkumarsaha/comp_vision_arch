@@ -10,7 +10,7 @@ from pathlib import Path
 class AppDefaults:
     train_data_root: str = str(Path("data") / "train-validation-data")
     test_data_root: str = str(Path("data") / "test-data")
-    image_size: str = "448"
+    image_size: str = "320"
     batch_size: str = "4"
     workers: str = "2"
     subset_size: str = "1000"

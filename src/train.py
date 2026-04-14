@@ -54,7 +54,7 @@ def parse_args():
     parser.add_argument("--epochs", type=int, default=10)
     parser.add_argument("--batch-size", type=int, default=4)
     parser.add_argument("--workers", type=int, default=2)
-    parser.add_argument("--image-size", type=int, default=448)
+    parser.add_argument("--image-size", type=int, default=320)
     parser.add_argument("--learning-rate", type=float, default=1e-4)
     parser.add_argument("--weight-decay", type=float, default=1e-4)
     parser.add_argument("--seed", type=int, default=42)
@@ -104,7 +104,7 @@ class TrainingApp:
             lr=config.learning_rate,
             weight_decay=config.weight_decay,
         )
-        self.scaler = torch.amp.GradScaler(self.runtime.device.type, enabled=self.runtime.device.type == "cuda")
+        self.scaler = torch.amp.GradScaler(device="cuda", enabled=True) if self.runtime.device.type == "cuda" else None
 
     def run(self) -> None:
         train_dataset = self.data.train_dataset()

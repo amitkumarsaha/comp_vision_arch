@@ -25,7 +25,12 @@ class DataConfig:
 
 class RuntimeEnvironment:
     def __init__(self) -> None:
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        if torch.cuda.is_available():
+            self.device = torch.device("cuda")
+        elif getattr(torch.backends, "mps", None) is not None and torch.backends.mps.is_available():
+            self.device = torch.device("mps")
+        else:
+            self.device = torch.device("cpu")
 
 
 class DataPipelineManager:

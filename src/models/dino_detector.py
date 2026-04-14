@@ -105,7 +105,7 @@ class BaseDinoGridDetector(nn.Module):
         model_name: str = "facebook/dinov2-small",
         hidden_dim: int = 256,
         num_classes: int = len(VOC_CLASSES),
-        image_size: int = 448,
+        image_size: int = 320,
     ) -> None:
         super().__init__()
         self.backbone = FrozenDinov2Backbone(model_name=model_name)
@@ -178,7 +178,7 @@ class DinoGridDetector(BaseDinoGridDetector):
         model_name: str = "facebook/dinov2-small",
         hidden_dim: int = 256,
         num_classes: int = len(VOC_CLASSES),
-        image_size: int = 448,
+        image_size: int = 320,
     ) -> None:
         super().__init__(model_name=model_name, hidden_dim=hidden_dim, num_classes=num_classes, image_size=image_size)
         self.head = GridDetectionHead(self.backbone.hidden_size, hidden_dim, num_classes)
@@ -284,7 +284,7 @@ class LegacyDinoGridDetector(BaseDinoGridDetector):
         model_name: str = "facebook/dinov2-small",
         hidden_dim: int = 256,
         num_classes: int = len(VOC_CLASSES),
-        image_size: int = 448,
+        image_size: int = 320,
     ) -> None:
         super().__init__(model_name=model_name, hidden_dim=hidden_dim, num_classes=num_classes, image_size=image_size)
         self.head = LegacyGridDetectionHead(self.backbone.hidden_size, hidden_dim, num_classes)
@@ -374,7 +374,7 @@ class DinoCheckpointCompatibility:
     def build_model(
         cls,
         checkpoint: dict,
-        image_size: int = 448,
+        image_size: int = 320,
         model_name: str = "facebook/dinov2-small",
     ):
         version = cls.version_from_checkpoint(checkpoint)
@@ -392,7 +392,7 @@ def is_legacy_dino_checkpoint(state_dict: dict[str, torch.Tensor]) -> bool:
 
 def build_dino_model_for_checkpoint(
     checkpoint: dict,
-    image_size: int = 448,
+    image_size: int = 320,
     model_name: str = "facebook/dinov2-small",
 ):
     return DinoCheckpointCompatibility.build_model(

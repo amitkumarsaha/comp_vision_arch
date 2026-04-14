@@ -39,7 +39,7 @@ def parse_args():
     parser.add_argument("--train-data-root", type=str, default="data/train-validation-data")
     parser.add_argument("--test-data-root", type=str, default="data/test-data")
     parser.add_argument("--checkpoint", type=str, required=True)
-    parser.add_argument("--image-size", type=int, default=448)
+    parser.add_argument("--image-size", type=int, default=320)
     parser.add_argument("--batch-size", type=int, default=4)
     parser.add_argument("--workers", type=int, default=2)
     return parser.parse_args()

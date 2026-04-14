@@ -47,7 +47,7 @@ def parse_args():
     parser.add_argument("--fasterrcnn-checkpoint", type=str, default=None)
     parser.add_argument("--output-dir", type=str, required=True)
     parser.add_argument("--num-images", type=int, default=3)
-    parser.add_argument("--image-size", type=int, default=448)
+    parser.add_argument("--image-size", type=int, default=320)
     args = parser.parse_args()
 
     single_model_mode = args.model is not None and args.checkpoint is not None

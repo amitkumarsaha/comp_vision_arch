@@ -27,9 +27,9 @@ python .\main.py
 
 The menu provides:
 
-- `1. Visualise`: runs the existing visualization flow, including DINO vs Faster R-CNN comparison images
-- `2. Evaluate`: evaluates both models and reports average detection losses plus `mAP@0.5`
-- `3. Report`: displays saved model setup, dataset, training, and evaluation details from the audit trail
+- `1. View Reports`: displays saved model setup, dataset, training, and evaluation details from the audit trail
+- `2. Visualise Test`: runs the existing visualization flow, including DINO vs Faster R-CNN comparison images
+- `3. Evaluate Training`: evaluates both models and reports average detection losses plus `mAP@0.5`
 - `4. Train Models`: prompts for model selection and training parameters, using defaults when left blank
 
 ## Train the DINO detector
@@ -42,7 +42,8 @@ python -m src.train `
   --output-dir .\outputs\dino `
   --subset-size 1000 `
   --epochs 10 `
-  --batch-size 4
+  --batch-size 4 `
+  --image-size 320
 ```
 
 ## Train the Faster R-CNN baseline
@@ -55,7 +56,8 @@ python -m src.train `
   --output-dir .\outputs\fasterrcnn `
   --subset-size 1000 `
   --epochs 10 `
-  --batch-size 4
+  --batch-size 4 `
+  --image-size 320
 ```
 
 ## Evaluate a checkpoint
@@ -65,31 +67,34 @@ python -m src.evaluate `
   --model dino `
   --train-data-root .\data\train-validation-data `
   --test-data-root .\data\test-data `
-  --checkpoint .\outputs\dino\best.pt
+  --checkpoint .\outputs\dino\best.pt `
+  --image-size 320
 ```
 
 ## Export qualitative predictions
 
 ```powershell
-python -m src.visualize `
+python -m src.visualise `
   --model fasterrcnn `
   --train-data-root .\data\train-validation-data `
   --test-data-root .\data\test-data `
   --checkpoint .\outputs\fasterrcnn\best.pt `
   --output-dir .\outputs\viz\fasterrcnn `
-  --num-images 3
+  --num-images 3 `
+  --image-size 320
 ```
 
 ## Export side-by-side comparison figures
 
 ```powershell
-python -m src.visualize `
+python -m src.visualise `
   --dino-checkpoint .\outputs\dino\best.pt `
   --fasterrcnn-checkpoint .\outputs\fasterrcnn\best.pt `
   --train-data-root .\data\train-validation-data `
   --test-data-root .\data\test-data `
   --output-dir .\outputs\viz\comparison `
-  --num-images 3
+  --num-images 3 `
+  --image-size 320
 ```
 
 ## Notes
@@ -115,6 +120,6 @@ If you prefer running scripts directly, these also work now:
 ```powershell
 python .\src\train.py --model dino --train-data-root .\data\train-validation-data --test-data-root .\data\test-data --output-dir .\outputs\dino
 python .\src\evaluate.py --model dino --train-data-root .\data\train-validation-data --test-data-root .\data\test-data --checkpoint .\outputs\dino\best.pt
-python .\src\visualize.py --model dino --train-data-root .\data\train-validation-data --test-data-root .\data\test-data --checkpoint .\outputs\dino\best.pt --output-dir .\outputs\viz\dino
-python .\src\visualize.py --dino-checkpoint .\outputs\dino\best.pt --fasterrcnn-checkpoint .\outputs\fasterrcnn\best.pt --train-data-root .\data\train-validation-data --test-data-root .\data\test-data --output-dir .\outputs\viz\comparison
+python .\src\visualise.py --model dino --train-data-root .\data\train-validation-data --test-data-root .\data\test-data --checkpoint .\outputs\dino\best.pt --output-dir .\outputs\viz\dino
+python .\src\visualise.py --dino-checkpoint .\outputs\dino\best.pt --fasterrcnn-checkpoint .\outputs\fasterrcnn\best.pt --train-data-root .\data\train-validation-data --test-data-root .\data\test-data --output-dir .\outputs\viz\comparison
 ```

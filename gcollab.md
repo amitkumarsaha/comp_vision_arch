@@ -107,7 +107,7 @@ Run:
   --epochs 10 \
   --batch-size 4 \
   --workers 2 \
-  --image-size 448 \
+  --image-size 320 \
   --learning-rate 1e-4 \
   --weight-decay 1e-4 \
   --seed 42
@@ -139,7 +139,7 @@ Run:
   --epochs 10 \
   --batch-size 4 \
   --workers 2 \
-  --image-size 448 \
+  --image-size 320 \
   --learning-rate 1e-4 \
   --weight-decay 1e-4 \
   --seed 42
@@ -166,7 +166,7 @@ Run:
   --train-data-root data/train-validation-data \
   --test-data-root data/test-data \
   --checkpoint outputs/dino/best.pt \
-  --image-size 448 \
+  --image-size 320 \
   --batch-size 4 \
   --workers 2
 ```
@@ -187,7 +187,7 @@ Run:
   --train-data-root data/train-validation-data \
   --test-data-root data/test-data \
   --checkpoint outputs/fasterrcnn/best.pt \
-  --image-size 448 \
+  --image-size 320 \
   --batch-size 4 \
   --workers 2
 ```
@@ -208,7 +208,7 @@ Run:
   --test-data-root data/test-data \
   --output-dir outputs/viz/comparison \
   --num-images 3 \
-  --image-size 448
+  --image-size 320
 ```
 
 This creates:
