@@ -61,21 +61,43 @@ class DataPipelineManager:
 
 class ModelFactory:
     @staticmethod
+    def resolve_image_size(checkpoint: dict | None, requested_image_size: int | None) -> int:
+        if checkpoint is not None:
+            checkpoint_args = checkpoint.get("args", {})
+            checkpoint_image_size = checkpoint_args.get("image_size")
+            if checkpoint_image_size is not None:
+                return int(checkpoint_image_size)
+        if requested_image_size is None:
+            raise ValueError("image_size must be provided when checkpoint metadata does not include it.")
+        return int(requested_image_size)
+
+    @staticmethod
+    def load_checkpoint_payload(checkpoint_path: str | Path) -> dict:
+        return torch.load(checkpoint_path, map_location="cpu")
+
+    @staticmethod
     def build(model_name: str, image_size: int, freeze_fasterrcnn_backbone: bool = False):
         if model_name == "dino":
             return DinoGridDetector(image_size=image_size)
         return build_faster_rcnn(train_backbone=not freeze_fasterrcnn_backbone)
 
     @classmethod
-    def load_checkpoint(cls, model_name: str, checkpoint_path: str | Path, image_size: int, device: torch.device):
-        checkpoint = torch.load(checkpoint_path, map_location="cpu")
+    def load_checkpoint(
+        cls,
+        model_name: str,
+        checkpoint_path: str | Path,
+        image_size: int | None,
+        device: torch.device,
+    ):
+        checkpoint = cls.load_checkpoint_payload(checkpoint_path)
+        resolved_image_size = cls.resolve_image_size(checkpoint, image_size)
         if model_name == "dino":
-            model = build_dino_model_for_checkpoint(checkpoint, image_size=image_size)
+            model = build_dino_model_for_checkpoint(checkpoint, image_size=resolved_image_size)
         else:
-            model = cls.build(model_name, image_size=image_size)
+            model = cls.build(model_name, image_size=resolved_image_size)
             model.load_state_dict(checkpoint["state_dict"])
         model.to(device)
-        return model, checkpoint
+        return model, checkpoint, resolved_image_size
 
 
 class AuditLogger:

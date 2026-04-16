@@ -1,18 +1,18 @@
 {
-  "timestamp_utc": "2026-04-11T22:52:07.101874+00:00",
+  "timestamp_utc": "2026-04-14T21:56:38.059541+00:00",
   "model": "dino",
   "device": "cpu",
-  "python": "3.14.0",
-  "platform": "Windows-11-10.0.26200-SP0",
-  "torch_version": "2.11.0+cpu",
+  "python": "3.12.7",
+  "platform": "macOS-26.4.1-arm64-arm-64bit",
+  "torch_version": "2.11.0",
   "cuda_available": false,
   "cuda_device_count": 0,
   "config": {
     "model": "dino",
-    "train_data_root": "C:\\Users\\Amit\\Projects\\github\\advanced-ml\\data\\train-validation-data",
-    "test_data_root": "C:\\Users\\Amit\\Projects\\github\\advanced-ml\\data\\test-data",
-    "output_dir": "C:\\Users\\Amit\\Projects\\github\\advanced-ml\\outputs\\dino",
-    "subset_size": 1000,
+    "train_data_root": "data/train-validation-data",
+    "test_data_root": "data/test-data",
+    "output_dir": "outputs/dino",
+    "subset_size": null,
     "epochs": 10,
     "batch_size": 4,
     "workers": 2,
@@ -34,6 +34,6 @@
       "dog": 3
     }
   },
-  "trainable_parameters": 1477128,
-  "total_parameters": 23533704
+  "trainable_parameters": 3644680,
+  "total_parameters": 25701256
 }

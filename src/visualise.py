@@ -64,14 +64,42 @@ def parse_args():
 
 class VisualisationApp:
     def __init__(self, config: VisualiseConfig) -> None:
-        self.config = config
         self.runtime = RuntimeEnvironment()
+        resolved_image_size = config.image_size
+        if config.checkpoint is not None:
+            checkpoint = ModelFactory.load_checkpoint_payload(config.checkpoint)
+            resolved_image_size = ModelFactory.resolve_image_size(checkpoint, config.image_size)
+        elif config.dino_checkpoint is not None and config.fasterrcnn_checkpoint is not None:
+            dino_checkpoint = ModelFactory.load_checkpoint_payload(config.dino_checkpoint)
+            fasterrcnn_checkpoint = ModelFactory.load_checkpoint_payload(config.fasterrcnn_checkpoint)
+            dino_image_size = ModelFactory.resolve_image_size(dino_checkpoint, config.image_size)
+            fasterrcnn_image_size = ModelFactory.resolve_image_size(fasterrcnn_checkpoint, config.image_size)
+            if dino_image_size != fasterrcnn_image_size:
+                raise ValueError(
+                    "Comparison checkpoints were trained with different image sizes "
+                    f"({dino_image_size} vs {fasterrcnn_image_size})."
+                )
+            resolved_image_size = dino_image_size
+        elif config.dino_checkpoint is not None:
+            checkpoint = ModelFactory.load_checkpoint_payload(config.dino_checkpoint)
+            resolved_image_size = ModelFactory.resolve_image_size(checkpoint, config.image_size)
+        self.config = VisualiseConfig(
+            model=config.model,
+            train_data_root=config.train_data_root,
+            test_data_root=config.test_data_root,
+            checkpoint=config.checkpoint,
+            dino_checkpoint=config.dino_checkpoint,
+            fasterrcnn_checkpoint=config.fasterrcnn_checkpoint,
+            output_dir=config.output_dir,
+            num_images=config.num_images,
+            image_size=resolved_image_size,
+        )
         self.audit = AuditLogger(config.output_dir)
         self.data = DataPipelineManager(
             DataConfig(
-                train_data_root=config.train_data_root,
-                test_data_root=config.test_data_root,
-                image_size=config.image_size,
+                train_data_root=self.config.train_data_root,
+                test_data_root=self.config.test_data_root,
+                image_size=self.config.image_size,
                 batch_size=1,
                 workers=0,
                 subset_size=None,
@@ -88,11 +116,14 @@ class VisualisationApp:
 
         if self._is_comparison_mode:
             self.config = VisualiseConfig(**{**self.config.__dict__, "model": "comparison"})
-            dino_model, _ = ModelFactory.load_checkpoint("dino", self.config.dino_checkpoint, self.config.image_size, self.runtime.device)
-            fasterrcnn_model, _ = ModelFactory.load_checkpoint("fasterrcnn", self.config.fasterrcnn_checkpoint, self.config.image_size, self.runtime.device)
+            dino_model, _, _ = ModelFactory.load_checkpoint("dino", self.config.dino_checkpoint, self.config.image_size, self.runtime.device)
+            fasterrcnn_model, _, _ = ModelFactory.load_checkpoint("fasterrcnn", self.config.fasterrcnn_checkpoint, self.config.image_size, self.runtime.device)
+            dino_model.eval()
+            fasterrcnn_model.eval()
             audit_model = dino_model
         else:
-            model, _ = ModelFactory.load_checkpoint(self.config.model, self.config.checkpoint, self.config.image_size, self.runtime.device)
+            model, _, _ = ModelFactory.load_checkpoint(self.config.model, self.config.checkpoint, self.config.image_size, self.runtime.device)
+            model.eval()
             audit_model = model
 
         saved = 0

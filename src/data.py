@@ -86,13 +86,29 @@ class VOCThreeClassDetection(Dataset):
     ) -> None:
         self.root = Path(root)
         self.image_size = image_size
+        self.dataset_root = self._resolve_voc_root(self.root)
         self.dataset = VOCDetection(
-            root=str(self.root),
+            root=str(self.dataset_root),
             year="2007",
             image_set=image_set,
             download=download,
         )
         self.valid_indices = self._build_index()
+
+    @staticmethod
+    def _resolve_voc_root(root: Path) -> Path:
+        if (root / "VOCdevkit" / "VOC2007").exists():
+            return root
+        if (root / "VOC2007").exists():
+            adapted_root = root / "VOCdevkit"
+            adapted_root.mkdir(parents=True, exist_ok=True)
+            target = adapted_root / "VOC2007"
+            if not target.exists():
+                target.symlink_to((root / "VOC2007").resolve())
+            return root
+        raise RuntimeError(
+            f"VOC2007 data not found under {root}. Expected either VOCdevkit/VOC2007 or VOC2007."
+        )
 
     def _build_index(self) -> list[int]:
         valid = []

@@ -47,22 +47,32 @@ def parse_args():
 
 class EvaluationApp:
     def __init__(self, config: EvaluationConfig) -> None:
-        self.config = config
         self.runtime = RuntimeEnvironment()
-        self.model, _checkpoint = ModelFactory.load_checkpoint(
+        checkpoint = ModelFactory.load_checkpoint_payload(config.checkpoint)
+        resolved_image_size = ModelFactory.resolve_image_size(checkpoint, config.image_size)
+        self.config = EvaluationConfig(
+            model=config.model,
+            train_data_root=config.train_data_root,
+            test_data_root=config.test_data_root,
+            checkpoint=config.checkpoint,
+            image_size=resolved_image_size,
+            batch_size=config.batch_size,
+            workers=config.workers,
+        )
+        self.model, _checkpoint, _resolved_image_size = ModelFactory.load_checkpoint(
             config.model,
             checkpoint_path=config.checkpoint,
-            image_size=config.image_size,
+            image_size=resolved_image_size,
             device=self.runtime.device,
         )
         self.audit = AuditLogger(Path(config.checkpoint).resolve().parent)
         self.data = DataPipelineManager(
             DataConfig(
-                train_data_root=config.train_data_root,
-                test_data_root=config.test_data_root,
-                image_size=config.image_size,
-                batch_size=config.batch_size,
-                workers=config.workers,
+                train_data_root=self.config.train_data_root,
+                test_data_root=self.config.test_data_root,
+                image_size=self.config.image_size,
+                batch_size=self.config.batch_size,
+                workers=self.config.workers,
                 subset_size=None,
                 seed=42,
             )

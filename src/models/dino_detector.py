@@ -11,6 +11,7 @@ from transformers import Dinov2Model
 from ..utils import VOC_CLASSES
 
 LEGACY_STEM_WEIGHT_KEY = "head.stem.0.weight"
+CURRENT_OBJ_WEIGHT_KEY = "head.obj_head.weight"
 LEGACY_CHECKPOINT_VERSION = "legacy_grid_head_v1"
 CURRENT_CHECKPOINT_VERSION = "grid_head_v2"
 
@@ -24,7 +25,7 @@ class DinoDetectorOutput:
 class FrozenDinov2Backbone(nn.Module):
     def __init__(self, model_name: str = "facebook/dinov2-small") -> None:
         super().__init__()
-        self.model = Dinov2Model.from_pretrained(model_name, attn_implementation="eager")
+        self.model = self._load_backbone(model_name)
         self.hidden_size = self.model.config.hidden_size
         image_mean = getattr(self.model.config, "image_mean", [0.485, 0.456, 0.406])
         image_std = getattr(self.model.config, "image_std", [0.229, 0.224, 0.225])
@@ -34,6 +35,20 @@ class FrozenDinov2Backbone(nn.Module):
         self.register_buffer("image_std", std, persistent=False)
         for parameter in self.model.parameters():
             parameter.requires_grad = False
+
+    @staticmethod
+    def _load_backbone(model_name: str) -> Dinov2Model:
+        load_kwargs = {"attn_implementation": "eager"}
+        try:
+            return Dinov2Model.from_pretrained(model_name, local_files_only=True, **load_kwargs)
+        except OSError as local_error:
+            try:
+                return Dinov2Model.from_pretrained(model_name, **load_kwargs)
+            except OSError as remote_error:
+                raise RuntimeError(
+                    "Unable to load the DINOv2 backbone. Cache the Hugging Face model locally "
+                    "or run once with internet access so it can be downloaded."
+                ) from remote_error
 
     def forward(self, images: torch.Tensor) -> torch.Tensor:
         normalized = (images - self.image_mean) / self.image_std
@@ -147,6 +162,7 @@ class BaseDinoGridDetector(nn.Module):
         scores: torch.Tensor,
         labels: torch.Tensor,
         score_threshold: float,
+        top_k: int = 100,
     ) -> list[dict[str, torch.Tensor]]:
         predictions = []
         for batch_idx in range(scores.shape[0]):
@@ -158,6 +174,11 @@ class BaseDinoGridDetector(nn.Module):
             selected_boxes = box_pred[batch_idx, :, keep].transpose(0, 1)
             selected_scores = scores[batch_idx][keep]
             selected_labels = labels[batch_idx][keep]
+            if selected_scores.numel() > top_k:
+                top_scores, top_indices = torch.topk(selected_scores, k=top_k)
+                selected_boxes = selected_boxes[top_indices]
+                selected_labels = selected_labels[top_indices]
+                selected_scores = top_scores
             xyxy = self._boxes_to_image_xyxy(selected_boxes)
             keep_indices = nms(xyxy, selected_scores, iou_threshold=0.5)
             predictions.append(
@@ -186,6 +207,7 @@ class DinoGridDetector(BaseDinoGridDetector):
     def encode_targets(self, targets, grid_h: int, grid_w: int, device: torch.device):
         cls_target = torch.full((len(targets), grid_h, grid_w), -1, dtype=torch.long, device=device)
         box_target = torch.zeros((len(targets), 4, grid_h, grid_w), dtype=torch.float32, device=device)
+        absolute_box_target = torch.zeros((len(targets), 4, grid_h, grid_w), dtype=torch.float32, device=device)
         pos_mask = torch.zeros((len(targets), grid_h, grid_w), dtype=torch.bool, device=device)
 
         for batch_idx, target in enumerate(targets):
@@ -209,22 +231,47 @@ class DinoGridDetector(BaseDinoGridDetector):
                 gy = cell_y[obj_idx].item()
                 if pos_mask[batch_idx, gy, gx]:
                     continue
+                offset_x = centers_x[obj_idx] * grid_w - gx
+                offset_y = centers_y[obj_idx] * grid_h - gy
                 cls_target[batch_idx, gy, gx] = labels[obj_idx] - 1
                 box_target[batch_idx, :, gy, gx] = torch.tensor(
+                    [offset_x, offset_y, widths[obj_idx], heights[obj_idx]],
+                    dtype=torch.float32,
+                    device=device,
+                )
+                absolute_box_target[batch_idx, :, gy, gx] = torch.tensor(
                     [centers_x[obj_idx], centers_y[obj_idx], widths[obj_idx], heights[obj_idx]],
                     dtype=torch.float32,
                     device=device,
                 )
                 pos_mask[batch_idx, gy, gx] = True
-        return cls_target, box_target, pos_mask
+        return cls_target, box_target, absolute_box_target, pos_mask
+
+    @staticmethod
+    def decode_box_predictions(box_pred: torch.Tensor) -> torch.Tensor:
+        batch_size, _, grid_h, grid_w = box_pred.shape
+        device = box_pred.device
+        grid_x = torch.arange(grid_w, device=device, dtype=box_pred.dtype).view(1, 1, grid_w).expand(batch_size, grid_h, grid_w)
+        grid_y = torch.arange(grid_h, device=device, dtype=box_pred.dtype).view(1, grid_h, 1).expand(batch_size, grid_h, grid_w)
+
+        decoded = torch.empty_like(box_pred)
+        decoded[:, 0] = (grid_x + box_pred[:, 0]) / grid_w
+        decoded[:, 1] = (grid_y + box_pred[:, 1]) / grid_h
+        decoded[:, 2] = box_pred[:, 2]
+        decoded[:, 3] = box_pred[:, 3]
+        return decoded
 
     def compute_losses(self, obj_logits: torch.Tensor, cls_logits: torch.Tensor, box_pred: torch.Tensor, targets):
         device = cls_logits.device
         _, _, grid_h, grid_w = cls_logits.shape
-        cls_target, box_target, pos_mask = self.encode_targets(targets, grid_h, grid_w, device)
+        cls_target, box_target, absolute_box_target, pos_mask = self.encode_targets(targets, grid_h, grid_w, device)
 
         obj_target = pos_mask.unsqueeze(1).float()
-        obj_loss = F.binary_cross_entropy_with_logits(obj_logits, obj_target)
+        positive_count = int(pos_mask.sum().item())
+        negative_count = pos_mask.numel() - positive_count
+        pos_weight_value = max(1.0, negative_count / max(positive_count, 1))
+        pos_weight = torch.tensor([pos_weight_value], device=device, dtype=obj_logits.dtype)
+        obj_loss = F.binary_cross_entropy_with_logits(obj_logits, obj_target, pos_weight=pos_weight)
 
         if pos_mask.any():
             positive_cls_logits = cls_logits.permute(0, 2, 3, 1)[pos_mask]
@@ -235,8 +282,9 @@ class DinoGridDetector(BaseDinoGridDetector):
 
         positive = pos_mask.unsqueeze(1).expand(-1, 4, -1, -1)
         if positive.any():
-            pred_boxes = box_pred[positive].view(-1, 4)
-            true_boxes = box_target[positive].view(-1, 4)
+            decoded_boxes = self.decode_box_predictions(box_pred)
+            pred_boxes = decoded_boxes[positive].view(-1, 4)
+            true_boxes = absolute_box_target[positive].view(-1, 4)
             l1_loss = F.l1_loss(pred_boxes, true_boxes)
             giou = generalized_box_iou(self.cxcywh_to_xyxy(pred_boxes), self.cxcywh_to_xyxy(true_boxes))
             giou_loss = 1.0 - torch.diag(giou).mean()
@@ -258,14 +306,15 @@ class DinoGridDetector(BaseDinoGridDetector):
         obj_logits: torch.Tensor,
         cls_logits: torch.Tensor,
         box_pred: torch.Tensor,
-        score_threshold: float = 0.20,
+        score_threshold: float = 0.05,
     ):
+        decoded_boxes = self.decode_box_predictions(box_pred)
         objectness = torch.sigmoid(obj_logits).squeeze(1)
         class_probabilities = torch.softmax(cls_logits, dim=1)
         class_scores, labels = class_probabilities.max(dim=1)
         scores = objectness * class_scores
         labels = labels + 1
-        return self._decode_selected_predictions(box_pred, scores, labels, score_threshold)
+        return self._decode_selected_predictions(decoded_boxes, scores, labels, score_threshold)
 
     def forward(self, images, targets=None):
         image_tensor = torch.stack(images, dim=0)
@@ -368,6 +417,8 @@ class DinoCheckpointCompatibility:
         state_dict = checkpoint["state_dict"]
         if LEGACY_STEM_WEIGHT_KEY in state_dict:
             return LEGACY_CHECKPOINT_VERSION
+        if CURRENT_OBJ_WEIGHT_KEY in state_dict:
+            return CURRENT_CHECKPOINT_VERSION
         return CURRENT_CHECKPOINT_VERSION
 
     @classmethod
