@@ -1,0 +1,11 @@
+{
+  "timestamp_utc": "2026-04-15T19:13:29.056233+00:00",
+  "checkpoint_path": "/Users/pronoti/MSc_AI/2nd Sem/AdvancedMachineLearning/comp_vision_arch/outputs/fasterrcnn-final/best.pt",
+  "epoch": 5,
+  "eval_metrics": {
+    "person": 0.8511141538619995,
+    "car": 0.8906992077827454,
+    "dog": 0.7508004307746887,
+    "mAP@0.5": 0.8308712641398112
+  }
+}

@@ -7,22 +7,33 @@ It includes:
 - A **frozen DINOv2 backbone** with a **custom grid-based detection head**
 - A **ResNet-50 Faster R-CNN baseline** for comparison
 - VOC2007 loading, filtering, training, evaluation, and visualisation scripts
-- A short report draft in [`report/assignment2_report.md`](C:/Users/Amit/Projects/github/advanced-ml/report/assignment2_report.md)
+- A short report draft in `report/assignment-2/assignment2_report.md`
+
+For the Assignment 2 brief, this maps to:
+
+- Required main strategy: **DINOv2 backbone + your own detection head**
+- Comparison strategy (option C): **ResNet-based detector via Faster R-CNN**
 
 ## Setup
 
-```powershell
-python -m venv .venv
-.venv\Scripts\Activate.ps1
+```bash
+python3 -m venv .venv-mps
+source .venv-mps/bin/activate
 pip install -r requirements.txt
+```
+
+If you are working on this repository on macOS with restricted cache permissions, create local cache directories first:
+
+```bash
+mkdir -p .cache/torch/hub/checkpoints .cache/huggingface .cache/matplotlib .cache/fontconfig logs
 ```
 
 ## Interactive Menu
 
 You can launch the project menu from the repository root:
 
-```powershell
-python .\main.py
+```bash
+python main.py
 ```
 
 The menu provides:
@@ -32,69 +43,124 @@ The menu provides:
 - `3. Evaluate Training`: evaluates both models and reports average detection losses plus `mAP@0.5`
 - `4. Train Models`: prompts for model selection and training parameters, using defaults when left blank
 
+## Dataset Layout
+
+The training scripts expect:
+
+- `data/train-validation-data/VOC2007/...`
+- `data/test-data/VOC2007/...`
+
+The loader also accepts a flat `VOC2007` folder and will resolve it automatically.
+
+## Working Training Configuration
+
+The successful final runs used:
+
+- Classes: `person`, `car`, `dog`
+- Train subset: `1000` images
+- Test split: filtered VOC2007 test set (`2895` images)
+- Seed: `42`
+- Image size: `448`
+- Batch size: `4`
+- Epochs: `10`
+- Workers: `0`
+
+`--workers 0` was necessary on this machine because multiprocessing workers crashed with shared-memory permission errors.
+
 ## Train the DINO detector
 
-```powershell
-python -m src.train `
-  --model dino `
-  --train-data-root .\data\train-validation-data `
-  --test-data-root .\data\test-data `
-  --output-dir .\outputs\dino `
-  --subset-size 1000 `
-  --epochs 10 `
-  --batch-size 4 `
-  --image-size 320
+Use local caches plus offline flags once `facebook/dinov2-small` has been downloaded or cached once on the machine:
+
+```bash
+TORCH_HOME="$PWD/.cache/torch" \
+HF_HOME="$HOME/.cache/huggingface" \
+MPLCONFIGDIR="$PWD/.cache/matplotlib" \
+XDG_CACHE_HOME="$PWD/.cache" \
+HF_HUB_OFFLINE=1 \
+TRANSFORMERS_OFFLINE=1 \
+./.venv-mps/bin/python -m src.train \
+  --model dino \
+  --train-data-root data/train-validation-data \
+  --test-data-root data/test-data \
+  --output-dir outputs/dino-final \
+  --subset-size 1000 \
+  --epochs 10 \
+  --batch-size 4 \
+  --image-size 448 \
+  --workers 0
 ```
 
 ## Train the Faster R-CNN baseline
 
-```powershell
-python -m src.train `
-  --model fasterrcnn `
-  --train-data-root .\data\train-validation-data `
-  --test-data-root .\data\test-data `
-  --output-dir .\outputs\fasterrcnn `
-  --subset-size 1000 `
-  --epochs 10 `
-  --batch-size 4 `
-  --image-size 320
+```bash
+TORCH_HOME="$PWD/.cache/torch" \
+HF_HOME="$PWD/.cache/huggingface" \
+MPLCONFIGDIR="$PWD/.cache/matplotlib" \
+XDG_CACHE_HOME="$PWD/.cache" \
+./.venv-mps/bin/python -m src.train \
+  --model fasterrcnn \
+  --train-data-root data/train-validation-data \
+  --test-data-root data/test-data \
+  --output-dir outputs/fasterrcnn-final \
+  --subset-size 1000 \
+  --epochs 10 \
+  --batch-size 4 \
+  --image-size 448 \
+  --workers 0
 ```
 
 ## Evaluate a checkpoint
 
-```powershell
-python -m src.evaluate `
-  --model dino `
-  --train-data-root .\data\train-validation-data `
-  --test-data-root .\data\test-data `
-  --checkpoint .\outputs\dino\best.pt `
-  --image-size 320
+The evaluation script now reads `image_size` from checkpoint metadata automatically, so you do not need to pass `--image-size` when the checkpoint was trained at `448`.
+
+```bash
+TORCH_HOME="$PWD/.cache/torch" \
+HF_HOME="$HOME/.cache/huggingface" \
+MPLCONFIGDIR="$PWD/.cache/matplotlib" \
+XDG_CACHE_HOME="$PWD/.cache" \
+HF_HUB_OFFLINE=1 \
+TRANSFORMERS_OFFLINE=1 \
+./.venv-mps/bin/python -m src.evaluate \
+  --model dino \
+  --train-data-root data/train-validation-data \
+  --test-data-root data/test-data \
+  --checkpoint outputs/dino-final/best.pt
 ```
 
 ## Export qualitative predictions
 
-```powershell
-python -m src.visualise `
-  --model fasterrcnn `
-  --train-data-root .\data\train-validation-data `
-  --test-data-root .\data\test-data `
-  --checkpoint .\outputs\fasterrcnn\best.pt `
-  --output-dir .\outputs\viz\fasterrcnn `
-  --num-images 3 `
-  --image-size 320
+```bash
+TORCH_HOME="$PWD/.cache/torch" \
+HF_HOME="$HOME/.cache/huggingface" \
+MPLCONFIGDIR="$PWD/.cache/matplotlib" \
+XDG_CACHE_HOME="$PWD/.cache" \
+HF_HUB_OFFLINE=1 \
+TRANSFORMERS_OFFLINE=1 \
+./.venv-mps/bin/python -m src.visualise \
+  --model dino \
+  --train-data-root data/train-validation-data \
+  --test-data-root data/test-data \
+  --checkpoint outputs/dino-final/best.pt \
+  --output-dir outputs/viz/dino-final \
+  --num-images 3
 ```
 
 ## Export side-by-side comparison figures
 
-```powershell
-python -m src.visualise `
-  --dino-checkpoint .\outputs\dino\best.pt `
-  --fasterrcnn-checkpoint .\outputs\fasterrcnn\best.pt `
-  --train-data-root .\data\train-validation-data `
-  --test-data-root .\data\test-data `
-  --output-dir .\outputs\viz\comparison `
-  --num-images 3 `
-  --image-size 320
+```bash
+TORCH_HOME="$PWD/.cache/torch" \
+HF_HOME="$HOME/.cache/huggingface" \
+MPLCONFIGDIR="$PWD/.cache/matplotlib" \
+XDG_CACHE_HOME="$PWD/.cache" \
+HF_HUB_OFFLINE=1 \
+TRANSFORMERS_OFFLINE=1 \
+./.venv-mps/bin/python -m src.visualise \
+  --dino-checkpoint outputs/dino-final/best.pt \
+  --fasterrcnn-checkpoint outputs/fasterrcnn-final/best.pt \
+  --train-data-root data/train-validation-data \
+  --test-data-root data/test-data \
+  --output-dir outputs/viz/comparison-final \
+  --num-images 3
 ```
 
 ## Notes
@@ -103,7 +169,9 @@ python -m src.visualise `
 - The training split is loaded from `data/train-validation-data` and the official VOC2007 test split from `data/test-data`.
 - The Faster R-CNN baseline fine-tunes a supervised detector on the exact same train subset and test split.
 - All metrics are computed on the **same test split** and **same three classes**.
-- If your hardware is limited, keep `--subset-size` around `500-1000` and use mixed precision when CUDA is available.
+- On this Apple Silicon machine, PyTorch MPS was unavailable in practice, so all successful final runs were CPU-based.
+- If your hardware is limited, keep `--subset-size` around `500-1000`.
+- If `transformers` tries to download DINO again during evaluation or visualization, point `HF_HOME` at the existing Hugging Face cache and use offline flags.
 
 ## Audit Trail
 
@@ -117,9 +185,9 @@ The dataset manifests include the exact filtered image ids and SHA-256 digests f
 
 If you prefer running scripts directly, these also work now:
 
-```powershell
-python .\src\train.py --model dino --train-data-root .\data\train-validation-data --test-data-root .\data\test-data --output-dir .\outputs\dino
-python .\src\evaluate.py --model dino --train-data-root .\data\train-validation-data --test-data-root .\data\test-data --checkpoint .\outputs\dino\best.pt
-python .\src\visualise.py --model dino --train-data-root .\data\train-validation-data --test-data-root .\data\test-data --checkpoint .\outputs\dino\best.pt --output-dir .\outputs\viz\dino
-python .\src\visualise.py --dino-checkpoint .\outputs\dino\best.pt --fasterrcnn-checkpoint .\outputs\fasterrcnn\best.pt --train-data-root .\data\train-validation-data --test-data-root .\data\test-data --output-dir .\outputs\viz\comparison
+```bash
+python src/train.py --model dino --train-data-root data/train-validation-data --test-data-root data/test-data --output-dir outputs/dino-final --subset-size 1000 --epochs 10 --batch-size 4 --image-size 448 --workers 0
+python src/evaluate.py --model dino --train-data-root data/train-validation-data --test-data-root data/test-data --checkpoint outputs/dino-final/best.pt
+python src/visualise.py --model dino --train-data-root data/train-validation-data --test-data-root data/test-data --checkpoint outputs/dino-final/best.pt --output-dir outputs/viz/dino-final --num-images 3
+python src/visualise.py --dino-checkpoint outputs/dino-final/best.pt --fasterrcnn-checkpoint outputs/fasterrcnn-final/best.pt --train-data-root data/train-validation-data --test-data-root data/test-data --output-dir outputs/viz/comparison-final --num-images 3
 ```

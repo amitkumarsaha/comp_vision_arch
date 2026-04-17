@@ -2,173 +2,232 @@
 
 ## 1. Task and Data
 
-This project studies object detection on the **PASCAL VOC 2007 detection dataset** using the restricted class subset **{person, car, dog}**. The implementation uses the official **trainval** split for training and the official **test** split for evaluation, with both splits filtered so that only images containing at least one of the three target classes are retained.
+This project studies object detection on **PASCAL VOC 2007** using the restricted class subset **{person, car, dog}**. The official **trainval** split is used for training and the official **test** split is used for evaluation. Both splits are filtered so that only images containing at least one of the three target classes are retained.
 
-The data was extracted locally into two roots:
+The dataset roots used in the implementation are:
 
 - Training root: `data/train-validation-data`
 - Test root: `data/test-data`
 
-The project audit trail confirms that both compared models used the same filtered splits:
+Both the DINO-based detector and the Faster R-CNN baseline were trained and evaluated on the same filtered data configuration:
 
 - Classes: `person`, `car`, `dog`
 - Training images used: **1000**
-- Test images used after filtering: **2895**
-- Subsampling applied: **yes**, a reproducible random subset of 1000 trainval images with seed `42`
+- Test images used: **2895**
+- Subsampling: reproducible random subset with seed `42`
+- Image size: **448 x 448**
+- Batch size: **4**
+- Epochs: **10**
+- Data-loader workers: **0**
 
-The exact subset identity is persisted in the audit manifests:
+The audit manifests confirm the exact subset identity:
 
 - Train subset SHA-256: `28a4ca86db9f501eb0cee8f9403461776aab6e8d6200391b707564073273017e`
 - Test subset SHA-256: `71b8e73e8ebdf89bc5044cae094c6d6f69fa7564706ac39f3f76feafea5ce6f2`
 
-This audit trail is useful because it verifies that both models were configured against the same train subset and exactly the same test set.
+This matters because the assignment requires the same train subset and the same test split across all compared models.
 
 ## 2. Model Designs
 
 ### 2.1 Main Model: Frozen DINOv2 + Custom Detection Head
 
-The main model uses a pretrained **DINOv2 small** backbone (`facebook/dinov2-small`) as a **frozen feature extractor**. The encoder is loaded through the Hugging Face `transformers` implementation and all backbone parameters are frozen, so optimization only updates the task-specific head.
+The main model uses **DINOv2-small** (`facebook/dinov2-small`) as a frozen pretrained backbone. The model is loaded through Hugging Face `transformers`, and the backbone weights are frozen so that only the custom detection head is trained.
 
 Feature extraction works as follows:
 
-- The input image is resized to `448 x 448`.
-- The DINOv2 backbone produces a sequence of patch tokens.
-- The class token is discarded.
-- The remaining patch tokens are reshaped into a 2D spatial feature map.
+- Input images are resized to `448 x 448`
+- DINOv2 patch tokens are extracted
+- The class token is discarded
+- The remaining patch tokens are reshaped into a 2D spatial feature map
 
-On top of that feature map, the project implements a custom **grid-based detection head**:
+On top of this feature map, the project implements a custom **grid-based detection head**:
 
-- A small convolutional stem adapts the frozen DINO features.
-- A classification branch predicts one of `{background, person, car, dog}` per spatial location.
-- A regression branch predicts normalized bounding boxes in `(cx, cy, w, h)` form.
-- During training, each object is assigned to the grid cell containing its box center.
+- a projection layer adapts DINO features to the detector head width
+- an objectness branch predicts whether a grid location contains an object
+- a classification branch predicts one of the three classes
+- a regression branch predicts bounding boxes in normalized `(cx, cy, w, h)` form
+
+The final version of the head includes:
+
+- objectness-balanced BCE loss
+- class cross-entropy loss on positive cells
+- L1 and generalized IoU box losses
+- grid-relative center decoding during training and inference
 
 Training strategy:
 
-- Backbone parameters frozen: **all DINOv2 backbone weights**
-- Trainable parameters: **custom detection head only**
-- Approximate trainable parameters: **1,477,128**
-- Total parameters: **23,533,704**
-
-Losses:
-
-- Cross-entropy classification loss
-- L1 box regression loss
-- Generalized IoU loss
-
-This design intentionally reflects a compute-constrained setting: the expensive pretrained representation is reused as-is, while only a lightweight detector head is optimized.
+- Backbone frozen: **yes**
+- Trainable parameters: **3,644,680**
+- Model role: lightweight detector head on reusable self-supervised features
 
 ### 2.2 Comparison Model: Faster R-CNN with ResNet-50 FPN
 
-The comparison strategy is a **supervised ResNet-based detector** implemented with **Faster R-CNN + ResNet-50 FPN** from `torchvision`.
-
-The model uses a pretrained supervised Faster R-CNN backbone and replaces the ROI classifier/predictor so it predicts the assignment classes. Although the detector internally uses a background category for no-object regions, the actual object categories being learned and evaluated remain `person`, `car`, and `dog`.
+The comparison strategy is **Faster R-CNN + ResNet-50 FPN** from `torchvision`. This is a supervised detection baseline that fine-tunes a detection-specific architecture rather than attaching a lightweight head to a frozen backbone.
 
 Training strategy:
 
-- Backbone/model: **Faster R-CNN with ResNet-50 FPN**
-- Fine-tuning: the detector is configured to fine-tune the backbone and detection head together
-- Approximate trainable parameters: **41,087,011**
-- Total parameters: **41,309,411**
+- Backbone/model: Faster R-CNN with ResNet-50 FPN
+- Fine-tuning: detector and backbone train together
+- Trainable parameters: **41,087,011**
 
-Compared with the frozen DINO approach, this baseline is much more detection-specialized but also much heavier to train.
+This gives a much stronger but much heavier baseline than the frozen DINO approach.
 
 ## 3. Experiments and Results
 
 ### 3.1 Experimental Setup
 
-Common settings used across the project:
+Shared settings across both models:
 
-- Dataset: VOC2007 filtered to `{person, car, dog}`
+- Dataset: VOC2007 filtered to `person`, `car`, `dog`
 - Train split: official `trainval`
 - Test split: official `test`
-- Train subset size: `1000`
-- Image resize: `448 x 448`
+- Training subset size: `1000`
+- Resize: `448 x 448`
+- Batch size: `4`
+- Epochs: `10`
+- Seed: `42`
 - Metric: **mAP@0.5**
-- Environment used in recorded runs: **CPU-only**
+- Recorded runs: CPU-based
 
-The project also logs an audit trail for reproducibility:
+Final commands/configuration that produced the successful runs:
 
-- dataset manifests with exact image ids and digests
-- run manifests with model configuration and parameter counts
-- checkpoint and training-progress metadata
+```bash
+TORCH_HOME="$PWD/.cache/torch" \
+HF_HOME="$HOME/.cache/huggingface" \
+MPLCONFIGDIR="$PWD/.cache/matplotlib" \
+XDG_CACHE_HOME="$PWD/.cache" \
+HF_HUB_OFFLINE=1 \
+TRANSFORMERS_OFFLINE=1 \
+./.venv-mps/bin/python -m src.train \
+  --model dino \
+  --train-data-root data/train-validation-data \
+  --test-data-root data/test-data \
+  --output-dir outputs/dino-final \
+  --subset-size 1000 \
+  --epochs 10 \
+  --batch-size 4 \
+  --image-size 448 \
+  --workers 0
+
+TORCH_HOME="$PWD/.cache/torch" \
+HF_HOME="$PWD/.cache/huggingface" \
+MPLCONFIGDIR="$PWD/.cache/matplotlib" \
+XDG_CACHE_HOME="$PWD/.cache" \
+./.venv-mps/bin/python -m src.train \
+  --model fasterrcnn \
+  --train-data-root data/train-validation-data \
+  --test-data-root data/test-data \
+  --output-dir outputs/fasterrcnn-final \
+  --subset-size 1000 \
+  --epochs 10 \
+  --batch-size 4 \
+  --image-size 448 \
+  --workers 0
+```
+
+The key practical fixes were:
+
+- using `448 x 448` consistently for training, evaluation, and visualization
+- forcing `--workers 0` because multiprocessing workers failed in this environment
+- using local cache directories for Torch/Matplotlib
+- loading DINO through the cached Hugging Face backbone instead of relying on live network access
 
 ### 3.2 Quantitative Results
 
-The latest saved project artifacts show a completed partial training run for the DINO model and a configured Faster R-CNN baseline run that has not yet produced saved evaluation metrics.
+| Model / Strategy | Trainable Params | Train Images | Test Images | Best Epoch | Best mAP@0.5 |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Frozen DINOv2-small + custom grid head | 3,644,680 | 1000 | 2895 | 8 | 0.4967 |
+| Faster R-CNN ResNet-50 FPN | 41,087,011 | 1000 | 2895 | 5 | 0.8309 |
 
-| Model / Strategy | Trainable Params (approx.) | Train Images | Test Images | mAP@0.5 |
-| --- | ---: | ---: | ---: | ---: |
-| Frozen DINOv2-small + custom grid head | 1,477,128 | 1000 | 2895 | 0.000 |
-| Faster R-CNN ResNet-50 FPN | 41,087,011 | 1000 | 2895 | Not yet recorded |
+Final DINO best per-class AP at the best epoch:
 
-Additional notes from the saved artifacts:
+- `person`: **0.4384**
+- `car`: **0.5287**
+- `dog`: **0.5229**
 
-- DINO run environment: CPU-only
-- DINO training progress recorded through epoch **4**
-- Best recorded DINO checkpoint: epoch **1**
-- Faster R-CNN run manifest exists, which confirms the model configuration and dataset alignment, but no saved checkpoint or evaluation report is available yet
+Faster R-CNN best per-class AP at the best epoch:
+
+- `person`: **0.8511**
+- `car`: **0.8907**
+- `dog`: **0.7508**
+
+Interpretation:
+
+- The frozen DINO + custom head model now clearly learns meaningful detections and no longer collapses to zero.
+- Faster R-CNN remains substantially stronger overall, which is expected from a detection-specialized supervised baseline with many more trainable parameters.
+- The final DINO result is still useful academically because it demonstrates that a frozen self-supervised backbone can support object detection with a relatively small task head under constrained compute.
 
 ### 3.3 Qualitative Results
 
-At the time of this report update, no saved qualitative prediction images were present in the project outputs directory for either model.
+The project now includes final DINO prediction exports in:
 
-The visualization pipeline is implemented and ready to export predictions for 2-3 test images per model once checkpoints are available. The report should ultimately include:
+- `outputs/viz/dino-final`
 
-- Figure 1: DINOv2 + custom head predictions on selected test images
-- Figure 2: Faster R-CNN predictions on selected test images
+The final comparison visualization layout is:
 
-Because the latest saved artifacts do not yet include exported `.png` prediction figures, these qualitative examples remain outstanding.
+1. Ground truth
+2. DINO prediction
+3. Faster R-CNN prediction
+
+The final comparison outputs were generated successfully in:
+
+- `outputs/viz/comparison-final`
+
+This export includes:
+
+- paired DINO vs Faster R-CNN figures
+- diagnostic triptychs with **ground truth, DINO, and Faster R-CNN**
+- a combined `comparison_grid.png`
+
+Examples from the generated manifest:
+
+- `000001.jpg`: ground truth `2`, DINO `3`, Faster R-CNN `5`
+- `000004.jpg`: ground truth `7`, DINO `38`, Faster R-CNN `13`
+- `000010.jpg`: ground truth `1`, DINO `5`, Faster R-CNN `5`
 
 ## 4. Discussion
 
 ### 4.1 Under Limited Compute and Limited Labeled Data
 
-Under a limited-compute, limited-label regime, I would still prefer the **frozen DINO + small head** strategy as the more practical starting point, even though the current recorded result is weak.
+Under limited compute, the frozen DINO approach is attractive because it trains far fewer parameters than Faster R-CNN and reuses a strong self-supervised representation. This makes it conceptually elegant and practical when GPU resources are limited.
 
-The reasons are strategic rather than purely score-based:
+In practice, the results show that the detector head design matters a lot. The first DINO attempt failed completely, but after fixing the detection head and training path, the model reached **0.4967 mAP@0.5**. That is a substantial improvement over the earlier zero-result behavior, but it still trails the Faster R-CNN baseline by a large margin.
 
-- It trains far fewer parameters than Faster R-CNN.
-- It is simpler to run within restricted hardware, especially on CPU or modest Colab settings.
-- It makes stronger use of reusable pretrained representation learning.
-
-That said, the current project evidence also shows the main risk of this strategy: a minimal custom detection head on top of frozen features may not be strong enough to deliver competitive localization performance without further refinement. In the saved run, the DINO model reached `mAP@0.5 = 0.0`, which suggests that simply freezing the backbone and attaching a small grid head is not automatically sufficient for this detection task.
-
-By contrast, Faster R-CNN is more likely to perform better once training is completed because its architecture is explicitly designed for object detection, region proposal, and localization. So if the goal is the best detection performance rather than the most lightweight adaptation, the comparison strategy is still very attractive.
+So under the exact constraints of this assignment, the comparison strategy is stronger for raw performance, while frozen DINO + custom head is stronger as a demonstration of backbone reuse and parameter-efficient adaptation.
 
 ### 4.2 If More Data and More Compute Were Available
 
-If more labeled data and more compute were available, I would shift away from the fully frozen setup and move toward a stronger fine-tuning strategy:
+With more data and more compute, I would move beyond the fully frozen setup and test:
 
-- unfreeze part of the DINO backbone, especially later blocks
-- add a stronger detection head, ideally multi-scale rather than a very simple single-scale grid head
-- compare that against a fully trained supervised detector baseline
+- partial unfreezing of later DINO blocks
+- a stronger multi-scale detection head
+- longer training and possibly larger train subsets
 
-With more compute, the Faster R-CNN baseline also becomes easier to justify, because its larger trainable parameter count is less of a bottleneck. In that regime, the best choice would likely be whichever detector yields stronger test-set localization after proper training rather than whichever is cheaper to optimize.
+That would likely narrow the gap with Faster R-CNN. The current result suggests that the DINO representation is useful, but the simple frozen setup leaves performance on the table.
 
-### 4.3 Connection Back to Assignment 1 Themes
-
-This project connects clearly to the Assignment 1 themes.
+### 4.3 Connection to Assignment 1 Themes
 
 **Backbones vs heads**
 
-The backbone provides general-purpose visual features, while the head defines the task-specific mapping from representation to detection outputs. The DINO model makes this distinction very explicit: the backbone is reused unchanged, and almost all task adaptation is delegated to the head.
+This project makes the backbone/head distinction explicit. DINOv2 acts as a reusable visual backbone, while the custom grid detector head performs the task-specific conversion from features to boxes and class scores.
 
 **Supervised vs self-supervised pretraining**
 
-DINOv2 is a self-supervised pretrained backbone, so it offers strong transferable visual features without direct detection supervision. Faster R-CNN with a supervised ResNet backbone, on the other hand, benefits from a more detection-oriented supervised training lineage. The current project outcome suggests that good general representation alone is not enough; the downstream detection architecture still matters a great deal.
+DINOv2 is self-supervised, whereas Faster R-CNN depends on a supervised detection-oriented backbone and architecture. The final results suggest that general visual features are helpful, but detection performance still depends heavily on the downstream task head and training design.
 
 **Reusing a single backbone for many tasks**
 
-The DINO setup is a direct example of backbone reuse: one pretrained visual encoder can be adapted to detection by swapping in a lightweight downstream head. This is conceptually powerful even when the first simple head is not yet strong enough, because it demonstrates how a single representation can support multiple tasks with relatively small task-specific additions.
+The DINO-based detector is a direct example of representation reuse: a single pretrained encoder can be adapted to a new task using a comparatively small custom head. Even though Faster R-CNN wins on absolute score, the DINO experiment still demonstrates the flexibility of transferable pretrained backbones.
 
 ## 5. Conclusion
 
-The project successfully implements the required two-strategy comparison:
+The project satisfies the assignment requirements with two compared strategies:
 
-1. A **frozen DINOv2-small backbone with a custom grid-based detection head**
-2. A **Faster R-CNN ResNet-50 FPN supervised baseline**
+1. **Frozen DINOv2-small backbone + custom detection head**
+2. **Faster R-CNN ResNet-50 FPN baseline**
 
-The latest saved audit artifacts confirm that both models were configured on the same 1000-image training subset and the same 2895-image filtered VOC2007 test set. The DINO run completed partial training on CPU and currently records `mAP@0.5 = 0.0`, while the Faster R-CNN baseline configuration is in place but does not yet have saved evaluation metrics or qualitative exports in the current workspace.
+Both runs use the same `1000`-image train subset, the same `2895`-image filtered VOC2007 test split, and the same target classes.
 
-The main strategic lesson so far is that a frozen pretrained backbone is appealing under tight compute budgets, but the quality of the downstream detection head is critical. A strong reusable backbone helps, but detection performance still depends heavily on how effectively the head translates those features into localization and classification outputs.
+The final DINO run achieved a best result of **0.4967 mAP@0.5**, proving that the fixed DINO pipeline does learn useful detections. The Faster R-CNN baseline remained stronger at **0.8309 mAP@0.5** at epoch 5, and the final qualitative comparison figures were generated successfully.
+
+The main strategic lesson is that a strong pretrained backbone is valuable, but object detection accuracy still depends heavily on the quality of the downstream head and the overall detection architecture. A frozen self-supervised backbone can work, but a specialized supervised detector remains more effective when the goal is maximum detection performance.
