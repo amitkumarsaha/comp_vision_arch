@@ -44,7 +44,7 @@ On top of this feature map, the project implements a custom **grid-based detecti
 
 - a projection layer adapts DINO features to the detector head width
 - an objectness branch predicts whether a grid location contains an object
-- a classification branch predicts one of the three classes
+- a classification branch predicts one of the three classes `{person, dog, car}`
 - a regression branch predicts bounding boxes in normalized `(cx, cy, w, h)` form
 
 The final version of the head includes:
@@ -91,6 +91,8 @@ Shared settings across both models:
 
 Final commands/configuration that produced the successful runs:
 
+DINOv2 + Custom Detection Head Training
+
 ```bash
 TORCH_HOME="$PWD/.cache/torch" \
 HF_HOME="$HOME/.cache/huggingface" \
@@ -108,11 +110,17 @@ TRANSFORMERS_OFFLINE=1 \
   --batch-size 4 \
   --image-size 448 \
   --workers 0
+```
 
+Faster R-CNN with ResNet-50 FPN Training
+
+```bash
 TORCH_HOME="$PWD/.cache/torch" \
 HF_HOME="$PWD/.cache/huggingface" \
 MPLCONFIGDIR="$PWD/.cache/matplotlib" \
 XDG_CACHE_HOME="$PWD/.cache" \
+HF_HUB_OFFLINE=1 \
+TRANSFORMERS_OFFLINE=1 \
 ./.venv-mps/bin/python -m src.train \
   --model fasterrcnn \
   --train-data-root data/train-validation-data \
@@ -134,10 +142,10 @@ The key practical fixes were:
 
 ### 3.2 Quantitative Results
 
-| Model / Strategy | Trainable Params | Train Images | Test Images | Best Epoch | Best mAP@0.5 |
-| --- | ---: | ---: | ---: | ---: | ---: |
-| Frozen DINOv2-small + custom grid head | 3,644,680 | 1000 | 2895 | 8 | 0.4967 |
-| Faster R-CNN ResNet-50 FPN | 41,087,011 | 1000 | 2895 | 5 | 0.8309 |
+| Model / Strategy                          | Trainable Params | Train Images | Test Images | Best Epoch | Best mAP@0.5 |
+|-------------------------------------------|-----------------:|-------------:|------------:|-----------:|-------------:|
+| DINO Backbone (Frozen) + Custom Grid Head |        3,644,680 |         1000 |        2895 |          8 |       0.4967 |
+| Faster R-CNN ResNet-50 FPN                |       41,087,011 |         1000 |        2895 |          5 |       0.8309 |
 
 Final DINO best per-class AP at the best epoch:
 
