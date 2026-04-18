@@ -1,6 +1,6 @@
-{
+﻿{
   "timestamp_utc": "2026-04-16T07:45:55.486994+00:00",
-  "summary_path": "/Users/pronoti/MSc_AI/2nd Sem/AdvancedMachineLearning/comp_vision_arch/outputs/fasterrcnn-final/summary.json",
+  "summary_path": "outputs/fasterrcnn-final/summary.json",
   "summary": {
     "model": "fasterrcnn",
     "train_images": 1000,

@@ -17,8 +17,16 @@ For the Assignment 2 brief, this maps to:
 ## Setup
 
 ```bash
-python3 -m venv .venv-mps
-source .venv-mps/bin/activate
+python -m venv .venv
+# Windows (PowerShell)
+.venv\Scripts\Activate.ps1
+
+# Windows (cmd.exe)
+.venv\Scripts\activate.bat
+
+# macOS / Linux
+source .venv/bin/activate
+
 pip install -r requirements.txt
 ```
 
@@ -33,7 +41,7 @@ mkdir -p .cache/torch/hub/checkpoints .cache/huggingface .cache/matplotlib .cach
 You can launch the project menu from the repository root:
 
 ```bash
-python main.py
+python -m main
 ```
 
 The menu provides:
@@ -78,7 +86,7 @@ MPLCONFIGDIR="$PWD/.cache/matplotlib" \
 XDG_CACHE_HOME="$PWD/.cache" \
 HF_HUB_OFFLINE=1 \
 TRANSFORMERS_OFFLINE=1 \
-./.venv-mps/bin/python -m src.train \
+python -m src.train \
   --model dino \
   --train-data-root data/train-validation-data \
   --test-data-root data/test-data \
@@ -97,7 +105,7 @@ TORCH_HOME="$PWD/.cache/torch" \
 HF_HOME="$PWD/.cache/huggingface" \
 MPLCONFIGDIR="$PWD/.cache/matplotlib" \
 XDG_CACHE_HOME="$PWD/.cache" \
-./.venv-mps/bin/python -m src.train \
+python -m src.train \
   --model fasterrcnn \
   --train-data-root data/train-validation-data \
   --test-data-root data/test-data \
@@ -120,7 +128,7 @@ MPLCONFIGDIR="$PWD/.cache/matplotlib" \
 XDG_CACHE_HOME="$PWD/.cache" \
 HF_HUB_OFFLINE=1 \
 TRANSFORMERS_OFFLINE=1 \
-./.venv-mps/bin/python -m src.evaluate \
+python -m src.evaluate \
   --model dino \
   --train-data-root data/train-validation-data \
   --test-data-root data/test-data \
@@ -136,7 +144,7 @@ MPLCONFIGDIR="$PWD/.cache/matplotlib" \
 XDG_CACHE_HOME="$PWD/.cache" \
 HF_HUB_OFFLINE=1 \
 TRANSFORMERS_OFFLINE=1 \
-./.venv-mps/bin/python -m src.visualise \
+python -m src.visualise \
   --model dino \
   --train-data-root data/train-validation-data \
   --test-data-root data/test-data \
@@ -154,7 +162,7 @@ MPLCONFIGDIR="$PWD/.cache/matplotlib" \
 XDG_CACHE_HOME="$PWD/.cache" \
 HF_HUB_OFFLINE=1 \
 TRANSFORMERS_OFFLINE=1 \
-./.venv-mps/bin/python -m src.visualise \
+python -m src.visualise \
   --dino-checkpoint outputs/dino-final/best.pt \
   --fasterrcnn-checkpoint outputs/fasterrcnn-final/best.pt \
   --train-data-root data/train-validation-data \
@@ -182,12 +190,3 @@ Each training, evaluation, and visualization run writes machine-readable audit r
 - Visualization writes `audit/visualization_run_manifest.json`, `audit/visualization_dataset_manifest.json`, and `audit/visualization_manifest.json` inside the visualization output directory.
 
 The dataset manifests include the exact filtered image ids and SHA-256 digests for the train and test sets, which makes it easy to verify that the same test set was used across models.
-
-If you prefer running scripts directly, these also work now:
-
-```bash
-python src/train.py --model dino --train-data-root data/train-validation-data --test-data-root data/test-data --output-dir outputs/dino-final --subset-size 1000 --epochs 10 --batch-size 4 --image-size 448 --workers 0
-python src/evaluate.py --model dino --train-data-root data/train-validation-data --test-data-root data/test-data --checkpoint outputs/dino-final/best.pt
-python src/visualise.py --model dino --train-data-root data/train-validation-data --test-data-root data/test-data --checkpoint outputs/dino-final/best.pt --output-dir outputs/viz/dino-final --num-images 3
-python src/visualise.py --dino-checkpoint outputs/dino-final/best.pt --fasterrcnn-checkpoint outputs/fasterrcnn-final/best.pt --train-data-root data/train-validation-data --test-data-root data/test-data --output-dir outputs/viz/comparison-final --num-images 3
-```

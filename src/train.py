@@ -1,30 +1,16 @@
 from __future__ import annotations
 
 import argparse
-import sys
 import time
 from dataclasses import asdict, dataclass
 from datetime import datetime
-from pathlib import Path
 
 import torch
 from tqdm import tqdm
 
-if __package__ in (None, ""):
-    sys.path.append(str(Path(__file__).resolve().parent.parent))
-    try:
-        from src.core.runtime import AuditLogger, DataConfig, DataPipelineManager, ModelFactory, RuntimeEnvironment
-    except ModuleNotFoundError:
-        from src.runtime import AuditLogger, DataConfig, DataPipelineManager, ModelFactory, RuntimeEnvironment
-    from src.engine import evaluate_model, train_one_epoch
-    from src.utils import count_trainable_parameters, save_json, seed_everything, utc_timestamp
-else:
-    try:
-        from .core.runtime import AuditLogger, DataConfig, DataPipelineManager, ModelFactory, RuntimeEnvironment
-    except ModuleNotFoundError:
-        from .runtime import AuditLogger, DataConfig, DataPipelineManager, ModelFactory, RuntimeEnvironment
-    from .engine import evaluate_model, train_one_epoch
-    from .utils import count_trainable_parameters, save_json, seed_everything, utc_timestamp
+from src.core.runtime import AuditLogger, DataConfig, DataPipelineManager, ModelFactory, RuntimeEnvironment
+from src.engine import evaluate_model, train_one_epoch
+from src.utils import count_trainable_parameters, save_json, seed_everything, project_path, utc_timestamp
 
 
 @dataclass(frozen=True)
@@ -53,8 +39,8 @@ def parse_args():
     parser.add_argument("--subset-size", type=int, default=None)
     parser.add_argument("--epochs", type=int, default=10)
     parser.add_argument("--batch-size", type=int, default=4)
-    parser.add_argument("--workers", type=int, default=2)
-    parser.add_argument("--image-size", type=int, default=320)
+    parser.add_argument("--workers", type=int, default=0)
+    parser.add_argument("--image-size", type=int, default=448)
     parser.add_argument("--learning-rate", type=float, default=1e-4)
     parser.add_argument("--weight-decay", type=float, default=1e-4)
     parser.add_argument("--seed", type=int, default=42)
@@ -197,7 +183,7 @@ class TrainingApp:
                 "best_checkpoint.json",
                 {
                     "timestamp_utc": utc_timestamp(),
-                    "checkpoint_path": str(checkpoint_path.resolve()),
+                    "checkpoint_path": project_path(checkpoint_path),
                     "epoch": epoch,
                     "eval_metrics": eval_metrics,
                 },
@@ -219,7 +205,7 @@ class TrainingApp:
             "training_summary.json",
             {
                 "timestamp_utc": utc_timestamp(),
-                "summary_path": str(summary_path.resolve()),
+                "summary_path": project_path(summary_path),
                 "summary": summary,
             },
         )

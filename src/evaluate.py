@@ -1,25 +1,12 @@
 from __future__ import annotations
 
 import argparse
-import sys
 from dataclasses import dataclass
 from pathlib import Path
 
-if __package__ in (None, ""):
-    sys.path.append(str(Path(__file__).resolve().parent.parent))
-    try:
-        from src.core.runtime import AuditLogger, DataConfig, DataPipelineManager, ModelFactory, RuntimeEnvironment
-    except ModuleNotFoundError:
-        from src.runtime import AuditLogger, DataConfig, DataPipelineManager, ModelFactory, RuntimeEnvironment
-    from src.engine import evaluate_losses, evaluate_model
-    from src.utils import utc_timestamp
-else:
-    try:
-        from .core.runtime import AuditLogger, DataConfig, DataPipelineManager, ModelFactory, RuntimeEnvironment
-    except ModuleNotFoundError:
-        from .runtime import AuditLogger, DataConfig, DataPipelineManager, ModelFactory, RuntimeEnvironment
-    from .engine import evaluate_losses, evaluate_model
-    from .utils import utc_timestamp
+from src.core.runtime import AuditLogger, DataConfig, DataPipelineManager, ModelFactory, RuntimeEnvironment
+from src.engine import evaluate_losses, evaluate_model
+from src.utils import project_path, utc_timestamp
 
 
 @dataclass(frozen=True)
@@ -39,9 +26,9 @@ def parse_args():
     parser.add_argument("--train-data-root", type=str, default="data/train-validation-data")
     parser.add_argument("--test-data-root", type=str, default="data/test-data")
     parser.add_argument("--checkpoint", type=str, required=True)
-    parser.add_argument("--image-size", type=int, default=320)
+    parser.add_argument("--image-size", type=int, default=448)
     parser.add_argument("--batch-size", type=int, default=4)
-    parser.add_argument("--workers", type=int, default=2)
+    parser.add_argument("--workers", type=int, default=0)
     return parser.parse_args()
 
 
@@ -65,7 +52,7 @@ class EvaluationApp:
             image_size=resolved_image_size,
             device=self.runtime.device,
         )
-        self.audit = AuditLogger(Path(config.checkpoint).resolve().parent)
+        self.audit = AuditLogger(Path(config.checkpoint).parent)
         self.data = DataPipelineManager(
             DataConfig(
                 train_data_root=self.config.train_data_root,
@@ -96,7 +83,7 @@ class EvaluationApp:
             "evaluation_report.json",
             {
                 "timestamp_utc": utc_timestamp(),
-                "checkpoint_path": str(Path(self.config.checkpoint).resolve()),
+                "checkpoint_path": project_path(self.config.checkpoint),
                 "losses": losses,
                 "metrics": metrics,
             },

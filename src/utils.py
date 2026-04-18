@@ -15,6 +15,20 @@ CLASS_TO_IDX = {name: idx + 1 for idx, name in enumerate(VOC_CLASSES)}
 IDX_TO_CLASS = {idx: name for name, idx in CLASS_TO_IDX.items()}
 
 
+def project_root() -> Path:
+    return Path(__file__).resolve().parent.parent
+
+
+def project_path(path: str | Path) -> str:
+    candidate = Path(path)
+    if not candidate.is_absolute():
+        return str(candidate).replace("\\", "/")
+    try:
+        return str(candidate.resolve().relative_to(project_root())).replace("\\", "/")
+    except ValueError:
+        return str(candidate).replace("\\", "/")
+
+
 def seed_everything(seed: int) -> None:
     random.seed(seed)
     np.random.seed(seed)

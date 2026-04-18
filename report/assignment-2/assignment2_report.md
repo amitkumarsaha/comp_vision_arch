@@ -144,21 +144,19 @@ Faster R-CNN best per-class AP at the best epoch:
 
 Training and mAP trends:
 
-![mAP over epochs](../../reports/plots/map_single_axis_comparison.png)
+![mAP over epochs](../../report/plots/map_single_axis_comparison.png)
 
-![AP per class over epochs](../../reports/plots/ap_per_class_over_epochs.png)
+![AP per class over epochs](../../report/plots/ap_per_class_over_epochs_annotated.png)
 
-![DINO training losses](../../reports/plots/dino_training_losses.png)
+![DINO training losses](../../report/plots/dino_training_losses.png)
 
-![Faster R-CNN training losses](../../reports/plots/fasterrcnn_training_losses.png)
+![Faster R-CNN training losses](../../report/plots/fasterrcnn_training_losses.png)
 
-![Total training loss proxy](../../reports/plots/total_training_loss_proxy_over_epochs.png)
+![Total training loss proxy](../../report/plots/total_training_loss_proxy_over_epochs.png)
 
 AP/PR diagnostics from the current plotting pipeline:
 
-![AP per class comparison](../../reports/plots/ap_per_class_comparison.png)
-
-![PR curves combined](../../reports/plots/pr_curve_combined.png)
+![PR curves combined](../../report/plots/pr_curve_combined.png)
 
 Interpretation:
 
@@ -170,9 +168,7 @@ Interpretation:
 
 IoU diagnostics were generated as a separate analysis track:
 
-![IoU per class comparison](../../reports/plots/iou_per_class_comparison.png)
-
-![IoU distributions combined](../../reports/plots/iou_distribution_combined.png)
+![IoU distributions combined](../../report/plots/iou_distribution_combined.png)
 
 These are useful for error analysis, but the assignment comparison metric remains AP/mAP.
 
@@ -183,6 +179,8 @@ The visualization pipeline exports comparison panels into `outputs/viz/...` with
 - ground-truth boxes
 - DINO predictions
 - Faster R-CNN predictions
+
+![Final qualitative comparison grid](../../outputs/viz/comparison-final/comparison_grid.png)
 
 ## 5. Discussion
 

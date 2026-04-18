@@ -1,6 +1,6 @@
-{
+﻿{
   "timestamp_utc": "2026-04-15T07:05:35.078460+00:00",
-  "checkpoint_path": "/Users/pronoti/MSc_AI/2nd Sem/AdvancedMachineLearning/comp_vision_arch/outputs/dino-final/best.pt",
+  "checkpoint_path": "outputs/dino-final/best.pt",
   "epoch": 8,
   "eval_metrics": {
     "person": 0.43840688467025757,

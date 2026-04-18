@@ -10,16 +10,16 @@ from pathlib import Path
 class AppDefaults:
     train_data_root: str = str(Path("data") / "train-validation-data")
     test_data_root: str = str(Path("data") / "test-data")
-    image_size: str = "320"
+    image_size: str = "448"
     batch_size: str = "4"
-    workers: str = "2"
+    workers: str = "0"
     subset_size: str = "1000"
     epochs: str = "10"
     learning_rate: str = "1e-4"
     weight_decay: str = "1e-4"
     seed: str = "42"
-    dino_output: str = str(Path("outputs") / "dino")
-    fasterrcnn_output: str = str(Path("outputs") / "fasterrcnn")
+    dino_output: str = str(Path("outputs") / "dino-final")
+    fasterrcnn_output: str = str(Path("outputs") / "fasterrcnn-final")
     viz_output: str = str(Path("outputs") / "viz" / "comparison")
 
 

@@ -6,7 +6,7 @@ from pathlib import Path
 import torch
 from torch.utils.data import Subset
 
-from .utils import CLASS_TO_IDX, VOC_CLASSES, ensure_dir, save_json, sha256_text, utc_timestamp
+from src.utils import CLASS_TO_IDX, VOC_CLASSES, ensure_dir, save_json, sha256_text, project_path, utc_timestamp
 
 
 def build_runtime_audit(args, model, device: torch.device) -> dict:
@@ -60,7 +60,7 @@ def build_split_audit(dataset, root: str | Path, split_name: str) -> dict:
     image_ids = dataset_image_ids(dataset)
     return {
         "split": split_name,
-        "root": str(Path(root).resolve()),
+        "root": project_path(root),
         "image_count": len(image_ids),
         "image_ids": image_ids,
         "sha256": sha256_text(image_ids),

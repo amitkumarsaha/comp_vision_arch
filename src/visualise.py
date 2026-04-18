@@ -1,27 +1,13 @@
 from __future__ import annotations
 
 import argparse
-import sys
 from dataclasses import dataclass
-from pathlib import Path
 
 import torch
 
-if __package__ in (None, ""):
-    sys.path.append(str(Path(__file__).resolve().parent.parent))
-    try:
-        from src.core.runtime import AuditLogger, DataConfig, DataPipelineManager, ModelFactory, RuntimeEnvironment
-    except ModuleNotFoundError:
-        from src.runtime import AuditLogger, DataConfig, DataPipelineManager, ModelFactory, RuntimeEnvironment
-    from src.utils import utc_timestamp
-    from src.visualization.rendering import PredictionAdapter, PredictionRenderer
-else:
-    try:
-        from .core.runtime import AuditLogger, DataConfig, DataPipelineManager, ModelFactory, RuntimeEnvironment
-    except ModuleNotFoundError:
-        from .runtime import AuditLogger, DataConfig, DataPipelineManager, ModelFactory, RuntimeEnvironment
-    from .utils import utc_timestamp
-    from .visualization.rendering import PredictionAdapter, PredictionRenderer
+from src.core.runtime import AuditLogger, DataConfig, DataPipelineManager, ModelFactory, RuntimeEnvironment
+from src.utils import utc_timestamp, project_path
+from src.visualization.rendering import PredictionAdapter, PredictionRenderer
 
 
 @dataclass(frozen=True)
@@ -47,7 +33,7 @@ def parse_args():
     parser.add_argument("--fasterrcnn-checkpoint", type=str, default=None)
     parser.add_argument("--output-dir", type=str, required=True)
     parser.add_argument("--num-images", type=int, default=3)
-    parser.add_argument("--image-size", type=int, default=320)
+    parser.add_argument("--image-size", type=int, default=448)
     args = parser.parse_args()
 
     single_model_mode = args.model is not None and args.checkpoint is not None
@@ -143,7 +129,7 @@ class VisualisationApp:
                 written_files.append(
                     {
                         "image_id": meta[0].image_id,
-                        "file": str(image_path.resolve()),
+                        "file": project_path(image_path),
                         "mode": self.config.model,
                         "prediction_count": int(prediction["boxes"].shape[0]),
                     }
@@ -155,7 +141,7 @@ class VisualisationApp:
         if self.config.model == "comparison" and comparison_rows:
             grid_path = self.audit.output_dir / "comparison_grid.png"
             self.renderer.save_comparison_grid(comparison_rows, grid_path)
-            written_files.append({"image_id": "all", "file": str(grid_path.resolve()), "mode": "comparison_grid", "rows": len(comparison_rows)})
+            written_files.append({"image_id": "all", "file": project_path(grid_path), "mode": "comparison_grid", "rows": len(comparison_rows)})
 
         self.audit.write_runtime("visualization_run_manifest.json", self.config, audit_model, self.runtime.device)
         self.audit.write_dataset(
@@ -170,10 +156,10 @@ class VisualisationApp:
             {
                 "timestamp_utc": utc_timestamp(),
                 "mode": self.config.model,
-                "checkpoint_path": str(Path(self.config.checkpoint).resolve()) if self.config.checkpoint else None,
-                "dino_checkpoint_path": str(Path(self.config.dino_checkpoint).resolve()) if self.config.dino_checkpoint else None,
-                "fasterrcnn_checkpoint_path": str(Path(self.config.fasterrcnn_checkpoint).resolve()) if self.config.fasterrcnn_checkpoint else None,
-                "output_dir": str(self.audit.output_dir.resolve()),
+                "checkpoint_path": project_path(self.config.checkpoint) if self.config.checkpoint else None,
+                "dino_checkpoint_path": project_path(self.config.dino_checkpoint) if self.config.dino_checkpoint else None,
+                "fasterrcnn_checkpoint_path": project_path(self.config.fasterrcnn_checkpoint) if self.config.fasterrcnn_checkpoint else None,
+                "output_dir": project_path(self.audit.output_dir),
                 "files": written_files,
             },
         )
@@ -208,7 +194,7 @@ class VisualisationApp:
         written_files.append(
             {
                 "image_id": image_id,
-                "file": str(image_path.resolve()),
+                "file": project_path(image_path),
                 "mode": "comparison",
                 "dino_prediction_count": int(dino_prediction["boxes"].shape[0]),
                 "fasterrcnn_prediction_count": int(fasterrcnn_prediction["boxes"].shape[0]),
@@ -217,7 +203,7 @@ class VisualisationApp:
         written_files.append(
             {
                 "image_id": image_id,
-                "file": str(diagnostic_path.resolve()),
+                "file": project_path(diagnostic_path),
                 "mode": "diagnostic_triptych",
                 "ground_truth_count": int(target["boxes"].shape[0]),
                 "dino_prediction_count": int(dino_prediction["boxes"].shape[0]),

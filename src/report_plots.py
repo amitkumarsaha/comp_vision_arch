@@ -8,6 +8,7 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import numpy as np
 
+from src.utils import project_path
 
 def _load_json(path: str | Path) -> dict:
     with Path(path).open("r", encoding="utf-8") as handle:
@@ -85,7 +86,7 @@ class ReportPlotGenerator:
         figure.tight_layout()
         figure.savefig(path, dpi=180, bbox_inches="tight")
         plt.close(figure)
-        return {"file": str(path.resolve()), "category": path.parent.name, "name": path.name}
+        return {"file": project_path(path), "category": path.parent.name, "name": path.name}
 
     def _plot_map_curve(self) -> list[dict]:
         dino_history = self.dino_summary["history"]
@@ -303,11 +304,11 @@ class ReportPlotGenerator:
 
     def _write_manifest(self, generated: list[dict]) -> None:
         payload = {
-            "dino_summary": str(Path(self.config.dino_summary).resolve()),
-            "faster_summary": str(Path(self.config.faster_summary).resolve()),
-            "dino_progress": str(Path(self.config.dino_progress).resolve()),
-            "faster_progress": str(Path(self.config.faster_progress).resolve()),
-            "output_root": str(self.output_root.resolve()),
+            "dino_summary": project_path(self.config.dino_summary),
+            "faster_summary": project_path(self.config.faster_summary),
+            "dino_progress": project_path(self.config.dino_progress),
+            "faster_progress": project_path(self.config.faster_progress),
+            "output_root": project_path(self.output_root),
             "generated_files": generated,
             "best_epochs": {
                 "dino": _best_epoch(self.dino_summary["history"]),

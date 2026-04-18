@@ -1,10 +1,10 @@
-{
+﻿{
   "timestamp_utc": "2026-04-15T14:45:50.329001+00:00",
   "subset_size_requested": 1000,
   "subset_seed": 42,
   "train": {
     "split": "trainval",
-    "root": "/Users/pronoti/MSc_AI/2nd Sem/AdvancedMachineLearning/comp_vision_arch/data/train-validation-data",
+    "root": "data/train-validation-data",
     "image_count": 1000,
     "image_ids": [
       "008512.jpg",
@@ -1012,7 +1012,7 @@
   },
   "test": {
     "split": "test",
-    "root": "/Users/pronoti/MSc_AI/2nd Sem/AdvancedMachineLearning/comp_vision_arch/data/test-data",
+    "root": "data/test-data",
     "image_count": 2895,
     "image_ids": [
       "000001.jpg",

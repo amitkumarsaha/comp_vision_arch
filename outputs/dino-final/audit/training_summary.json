@@ -1,6 +1,6 @@
-{
+﻿{
   "timestamp_utc": "2026-04-15T07:59:03.693389+00:00",
-  "summary_path": "/Users/pronoti/MSc_AI/2nd Sem/AdvancedMachineLearning/comp_vision_arch/outputs/dino-final/summary.json",
+  "summary_path": "outputs/dino-final/summary.json",
   "summary": {
     "model": "dino",
     "train_images": 1000,
