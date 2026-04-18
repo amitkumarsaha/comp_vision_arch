@@ -1,4 +1,5 @@
 .idea
+/unused/
 /data/
 outputs/viz/
 __pycache__/

@@ -2,10 +2,11 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
+import xml.etree.ElementTree as ET
 
 import torch
+from PIL import Image
 from torch.utils.data import DataLoader, Dataset, Subset
-from torchvision.datasets import VOCDetection
 from torchvision.transforms import functional as F
 
 from .utils import CLASS_TO_IDX, collate_detection_batch
@@ -86,93 +87,104 @@ class VOCThreeClassDetection(Dataset):
     ) -> None:
         self.root = Path(root)
         self.image_size = image_size
-        self.dataset_root = self._resolve_voc_root(self.root)
-        self.dataset = VOCDetection(
-            root=str(self.dataset_root),
-            year="2007",
-            image_set=image_set,
-            download=download,
-        )
-        self.valid_indices = self._build_index()
+        self.voc2007_root = self._resolve_voc2007_root(self.root)
+        self.image_set = image_set
+        self.records = self._build_records()
 
     @staticmethod
-    def _resolve_voc_root(root: Path) -> Path:
-        if (root / "VOCdevkit" / "VOC2007").exists():
-            return root
+    def _resolve_voc2007_root(root: Path) -> Path:
         if (root / "VOC2007").exists():
-            adapted_root = root / "VOCdevkit"
-            adapted_root.mkdir(parents=True, exist_ok=True)
-            target = adapted_root / "VOC2007"
-            if not target.exists():
-                target.symlink_to((root / "VOC2007").resolve())
+            return root / "VOC2007"
+        if root.name == "VOC2007" and root.exists():
             return root
         raise RuntimeError(
-            f"VOC2007 data not found under {root}. Expected either VOCdevkit/VOC2007 or VOC2007."
+            f"VOC2007 data not found under {root}. Expected {root / 'VOC2007'} or direct VOC2007 path."
         )
 
-    def _build_index(self) -> list[int]:
-        valid = []
-        for idx in range(len(self.dataset)):
-            _image, target = self.dataset[idx]
-            objects = target["annotation"].get("object", [])
-            if isinstance(objects, dict):
-                objects = [objects]
-            if any(obj["name"] in CLASS_TO_IDX for obj in objects):
-                valid.append(idx)
-        return valid
+    def _split_file(self) -> Path:
+        return self.voc2007_root / "ImageSets" / "Main" / f"{self.image_set}.txt"
 
-    def __len__(self) -> int:
-        return len(self.valid_indices)
-
-    def __getitem__(self, index: int):
-        image, target = self.dataset[self.valid_indices[index]]
-        annotation = target["annotation"]
-        objects = annotation.get("object", [])
-        if isinstance(objects, dict):
-            objects = [objects]
-
+    def _parse_annotation(self, image_id: str):
+        annotation_path = self.voc2007_root / "Annotations" / f"{image_id}.xml"
+        root = ET.parse(annotation_path).getroot()
         boxes = []
         labels = []
         difficult = []
-        for obj in objects:
-            name = obj["name"]
+
+        for obj in root.findall("object"):
+            name = obj.findtext("name", default="")
             if name not in CLASS_TO_IDX:
                 continue
-            bbox = obj["bndbox"]
-            xmin = float(bbox["xmin"]) - 1.0
-            ymin = float(bbox["ymin"]) - 1.0
-            xmax = float(bbox["xmax"]) - 1.0
-            ymax = float(bbox["ymax"]) - 1.0
+            bndbox = obj.find("bndbox")
+            if bndbox is None:
+                continue
+
+            xmin = float(bndbox.findtext("xmin", default="0")) - 1.0
+            ymin = float(bndbox.findtext("ymin", default="0")) - 1.0
+            xmax = float(bndbox.findtext("xmax", default="0")) - 1.0
+            ymax = float(bndbox.findtext("ymax", default="0")) - 1.0
             if xmax <= xmin or ymax <= ymin:
                 continue
+
             boxes.append([xmin, ymin, xmax, ymax])
             labels.append(CLASS_TO_IDX[name])
-            difficult.append(int(obj.get("difficult", 0)))
+            difficult.append(int(obj.findtext("difficult", default="0")))
 
-        if not boxes:
-            raise RuntimeError("Filtered VOC sample unexpectedly has no retained boxes.")
+        return boxes, labels, difficult
 
-        orig_w, orig_h = image.size
-        image = image.convert("RGB")
-        image = F.resize(image, [self.image_size, self.image_size])
-        image_tensor = F.to_tensor(image)
+    def _build_records(self) -> list[dict]:
+        split_file = self._split_file()
+        if not split_file.exists():
+            raise RuntimeError(f"Missing VOC split file: {split_file}")
+
+        image_ids = [line.strip() for line in split_file.read_text(encoding="utf-8").splitlines() if line.strip()]
+        records = []
+        for image_id in image_ids:
+            boxes, labels, difficult = self._parse_annotation(image_id)
+            if not boxes:
+                continue
+            records.append(
+                {
+                    "image_id": image_id,
+                    "filename": f"{image_id}.jpg",
+                    "image_path": self.voc2007_root / "JPEGImages" / f"{image_id}.jpg",
+                    "boxes": boxes,
+                    "labels": labels,
+                    "difficult": difficult,
+                }
+            )
+        return records
+
+    def __len__(self) -> int:
+        return len(self.records)
+
+    def image_id_at(self, index: int) -> str:
+        return self.records[index]["filename"]
+
+    def __getitem__(self, index: int):
+        record = self.records[index]
+        pil_image = Image.open(record["image_path"]).convert("RGB")
+
+        orig_w, orig_h = pil_image.size
+        resized = F.resize(pil_image, [self.image_size, self.image_size])
+        image_tensor = F.to_tensor(resized)
 
         scale_x = self.image_size / orig_w
         scale_y = self.image_size / orig_h
-        resized_boxes = torch.tensor(boxes, dtype=torch.float32)
+        resized_boxes = torch.tensor(record["boxes"], dtype=torch.float32)
         resized_boxes[:, [0, 2]] *= scale_x
         resized_boxes[:, [1, 3]] *= scale_y
 
         target_dict = {
             "boxes": resized_boxes,
-            "labels": torch.tensor(labels, dtype=torch.long),
-            "difficult": torch.tensor(difficult, dtype=torch.long),
-            "image_id": annotation["filename"],
+            "labels": torch.tensor(record["labels"], dtype=torch.long),
+            "difficult": torch.tensor(record["difficult"], dtype=torch.long),
+            "image_id": record["filename"],
             "orig_size": torch.tensor([orig_h, orig_w], dtype=torch.long),
             "size": torch.tensor([self.image_size, self.image_size], dtype=torch.long),
         }
         meta = SampleMeta(
-            image_id=annotation["filename"],
+            image_id=record["filename"],
             original_size=(orig_h, orig_w),
             resized_size=(self.image_size, self.image_size),
         )

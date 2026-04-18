@@ -1,0 +1,16 @@
+{
+  "timestamp_utc": "2026-04-13T20:16:50.725920+00:00",
+  "checkpoint_path": "C:\\Users\\Amit\\Projects\\github\\advanced-ml\\outputs\\dino\\best.pt",
+  "losses": {
+    "loss": 1.607174122448784,
+    "loss_cls": 0.021179915772421665,
+    "loss_l1": 0.07972348532356445,
+    "loss_giou": 0.593688389708324
+  },
+  "metrics": {
+    "person": 0.0,
+    "car": 0.0,
+    "dog": 0.0,
+    "mAP@0.5": 0.0
+  }
+}

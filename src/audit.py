@@ -37,11 +37,22 @@ def _unwrap_dataset(dataset):
 
 def dataset_image_ids(dataset) -> list[str]:
     base_dataset, indices = _unwrap_dataset(dataset)
+    if hasattr(base_dataset, "image_id_at"):
+        return [base_dataset.image_id_at(index) for index in indices]
+
     image_ids = []
-    for subset_index in indices:
-        dataset_index = base_dataset.valid_indices[subset_index]
-        target = base_dataset.dataset[dataset_index][1]
-        image_ids.append(target["annotation"]["filename"])
+    if hasattr(base_dataset, "valid_indices") and hasattr(base_dataset, "dataset"):
+        for subset_index in indices:
+            dataset_index = base_dataset.valid_indices[subset_index]
+            target = base_dataset.dataset[dataset_index][1]
+            image_ids.append(target["annotation"]["filename"])
+        return image_ids
+
+    for index in indices:
+        sample = base_dataset[index]
+        target = sample["target"] if isinstance(sample, dict) else sample[1]
+        image_id = target.get("image_id", f"index-{index}")
+        image_ids.append(str(image_id))
     return image_ids
 
 

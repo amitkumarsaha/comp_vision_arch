@@ -1,0 +1,11 @@
+{
+  "timestamp_utc": "2026-04-14T23:00:13.934422+00:00",
+  "checkpoint_path": "/Users/pronoti/MSc_AI/2nd Sem/AdvancedMachineLearning/comp_vision_arch/outputs/dino-debug/best.pt",
+  "epoch": 2,
+  "eval_metrics": {
+    "person": 0.18509602546691895,
+    "car": 0.19431622326374054,
+    "dog": 0.32269763946533203,
+    "mAP@0.5": 0.23403662939866385
+  }
+}

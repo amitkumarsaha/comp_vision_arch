@@ -41,10 +41,10 @@ class FrozenDinov2Backbone(nn.Module):
         load_kwargs = {"attn_implementation": "eager"}
         try:
             return Dinov2Model.from_pretrained(model_name, local_files_only=True, **load_kwargs)
-        except OSError as local_error:
+        except (OSError, AttributeError) as local_error:
             try:
                 return Dinov2Model.from_pretrained(model_name, **load_kwargs)
-            except OSError as remote_error:
+            except (OSError, AttributeError) as remote_error:
                 raise RuntimeError(
                     "Unable to load the DINOv2 backbone. Cache the Hugging Face model locally "
                     "or run once with internet access so it can be downloaded."
