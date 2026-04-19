@@ -1,1 +1,2 @@
-*.pt filter=lfs diff=lfs merge=lfs -text
+outputs/dino-final/best.pt filter=lfs diff=lfs merge=lfs -text
+outputs/fasterrcnn-final/best.pt filter=lfs diff=lfs merge=lfs -text
