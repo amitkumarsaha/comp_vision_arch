@@ -17,41 +17,21 @@ For the Assignment 2 brief, this maps to:
 ## Setup
 
 ```bash
-python -3.11 -m venv .venv
+py -3.11 -m venv .venv
 # Windows (PowerShell)
 .venv\Scripts\Activate.ps1
 
 # Windows (cmd.exe)
 .venv\Scripts\activate.bat
 
-# macOS / Linux
-source .venv/bin/activate
-
 python -m pip install -r requirements.txt
 ```
 
-If you are working on this repository on macOS with restricted cache permissions, create local cache directories first:
+## Dataset
+- Download [PASCAL VOC 2007 training/validation data](https://www.robots.ox.ac.uk/~vgg/projects/pascal/VOC/voc2007/VOCtrainval_06-Nov-2007.tar) and extract to `data/train-validation-data/`
+- Download [PASCAL VOC 2007 test data](https://www.robots.ox.ac.uk/~vgg/projects/pascal/VOC/voc2007/VOCtest_06-Nov-2007.tar) and extract to `data/test-data/`
 
-```bash
-mkdir -p .cache/torch/hub/checkpoints .cache/huggingface .cache/matplotlib .cache/fontconfig logs
-```
-
-## Interactive Menu
-
-You can launch the project menu from the repository root:
-
-```bash
-python -m main
-```
-
-The menu provides:
-
-- `1. View Reports`: displays saved model setup, dataset, training, and evaluation details from the audit trail
-- `2. Visualise Test`: runs the existing visualization flow, including DINO vs Faster R-CNN comparison images
-- `3. Evaluate Training`: evaluates both models and reports average detection losses plus `mAP@0.5`
-- `4. Train Models`: prompts for model selection and training parameters, using defaults when left blank
-
-## Dataset Layout
+### Dataset Layout
 
 The training scripts expect:
 
@@ -129,6 +109,7 @@ python -m src.evaluate \
 
 ## Export qualitative predictions
 
+### DINO
 ```bash
 python -m src.visualise \
   --model dino \
@@ -136,6 +117,17 @@ python -m src.visualise \
   --test-data-root data/test-data \
   --checkpoint outputs/dino-final/best.pt \
   --output-dir outputs/viz/dino-final \
+  --num-images 3
+```
+
+### Faster R-CNN
+```bash
+python -m src.visualise \
+  --model fasterrcnn \
+  --train-data-root data/train-validation-data \
+  --test-data-root data/test-data \
+  --checkpoint outputs/fasterrcnn-final/best.pt \
+  --output-dir outputs/viz/fasterrcnn-final \
   --num-images 3
 ```
 
@@ -153,12 +145,12 @@ python -m src.visualise \
 
 ## Generate report plots
 ```bash
-python -m src.report_plots \
+python -m src.plots \
   --dino-summary outputs/dino-final/summary.json \ 
   --faster-summary outputs/fasterrcnn-final/summary.json \
   --dino-eval-data outputs/dino-final/audit/evaluation_plot_data.json \
   --faster-eval-data outputs/fasterrcnn-final/audit/evaluation_plot_data.json \
-  --output-dir outputs/plots
+  --output-dir outputs/viz/plots
 ```
 
 ## Notes

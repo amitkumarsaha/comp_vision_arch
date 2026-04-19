@@ -89,14 +89,30 @@ class ReportPlotGenerator:
             textcoords="offset points",
             color=self.DINO_COLOR,
             fontsize=10,
+            bbox=dict(
+                boxstyle="round,pad=0.25",
+                facecolor="white",
+                edgecolor=self.DINO_COLOR,
+                linewidth=1.0,
+                alpha=0.95,
+            ),
+            arrowprops=dict(arrowstyle="->", color=self.DINO_COLOR, lw=1.1),
         )
         axis.annotate(
             f"Best Faster R-CNN: {f_best:.3f}",
             xy=(epochs[f_map.index(f_best)], f_best),
-            xytext=(8, -16),
+            xytext=(8, -32),
             textcoords="offset points",
             color=self.FASTER_COLOR,
             fontsize=10,
+            bbox=dict(
+                boxstyle="round,pad=0.25",
+                facecolor="white",
+                edgecolor=self.FASTER_COLOR,
+                linewidth=1.0,
+                alpha=0.95,
+            ),
+            arrowprops=dict(arrowstyle="->", color=self.FASTER_COLOR, lw=1.1),
         )
 
         axis.set_title("mAP@0.5 over Epochs (Single Axis)")
@@ -196,33 +212,58 @@ class ReportPlotGenerator:
         f_hist = self.faster_summary["history"]
         epochs = self._epochs(d_hist)
 
-        d_total = self._series(d_hist, "train", "loss")
+        dino_keys = ["loss", "loss_obj", "loss_cls", "loss_l1", "loss_giou"]
+        dino_series = {}
+        for key in dino_keys:
+            if all(key in row.get("train", {}) for row in d_hist):
+                dino_series[key] = self._series(d_hist, "train", key)
+
+        faster_keys = ["loss_classifier", "loss_box_reg", "loss_objectness", "loss_rpn_box_reg"]
+        faster_series = {}
+        for key in faster_keys:
+            if all(key in row.get("train", {}) for row in f_hist):
+                faster_series[key] = self._series(f_hist, "train", key)
+
+        d_total = dino_series.get("loss", [])
+        if not d_total:
+            d_total = [
+                float(row["train"].get("loss_obj", 0.0))
+                + float(row["train"].get("loss_cls", 0.0))
+                + float(row["train"].get("loss_l1", 0.0))
+                + float(row["train"].get("loss_giou", 0.0))
+                for row in d_hist
+            ]
         f_total = [
-            float(row["train"]["loss_classifier"])
-            + float(row["train"]["loss_box_reg"])
-            + float(row["train"]["loss_objectness"])
-            + float(row["train"]["loss_rpn_box_reg"])
+            float(row["train"].get("loss_classifier", 0.0))
+            + float(row["train"].get("loss_box_reg", 0.0))
+            + float(row["train"].get("loss_objectness", 0.0))
+            + float(row["train"].get("loss_rpn_box_reg", 0.0))
             for row in f_hist
         ]
 
         fig, axes = plt.subplots(1, 3, figsize=(18, 5), sharex=True)
-        axes[0].plot(epochs, d_total, color=self.DINO_COLOR, marker="o", linewidth=2)
-        axes[0].set_title("DINO Total Train Loss")
+
+        for key, values in dino_series.items():
+            axes[0].plot(epochs, values, marker="o", linewidth=1.4, label=key)
+        axes[0].set_title("DINO Training Loss Components")
         axes[0].set_xlabel("Epoch")
         axes[0].set_ylabel("Loss")
         axes[0].grid(True, alpha=0.3)
+        axes[0].legend()
 
-        axes[1].plot(epochs, f_total, color=self.FASTER_COLOR, marker="s", linewidth=2)
-        axes[1].set_title("Faster R-CNN Total Train Loss")
+        for key, values in faster_series.items():
+            axes[1].plot(epochs, values, marker="o", linewidth=1.4, label=key)
+        axes[1].set_title("Faster R-CNN Training Loss Components")
         axes[1].set_xlabel("Epoch")
         axes[1].set_ylabel("Loss")
         axes[1].grid(True, alpha=0.3)
+        axes[1].legend()
 
-        axes[2].plot(epochs, d_total, color=self.DINO_COLOR, marker="o", linewidth=2, label="DINO")
-        axes[2].plot(epochs, f_total, color=self.FASTER_COLOR, marker="s", linewidth=2, label="Faster R-CNN")
-        axes[2].set_title("Total Train Loss Proxy")
+        axes[2].plot(epochs, d_total, color=self.DINO_COLOR, marker="o", linewidth=1.4, label="DINO total train loss (sum)")
+        axes[2].plot(epochs, f_total, color=self.FASTER_COLOR, marker="o", linewidth=1.4, label="Faster R-CNN total train loss (sum)")
+        axes[2].set_title("Total Training Loss Proxy Over Epochs")
         axes[2].set_xlabel("Epoch")
-        axes[2].set_ylabel("Loss")
+        axes[2].set_ylabel("Total Training Loss (sum of components)")
         axes[2].grid(True, alpha=0.3)
         axes[2].legend()
 

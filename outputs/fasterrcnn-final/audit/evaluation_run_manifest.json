@@ -1,0 +1,33 @@
+{
+  "timestamp_utc": "2026-04-19T11:43:37.457482+00:00",
+  "model": "fasterrcnn",
+  "device": "cpu",
+  "python": "3.11.9",
+  "platform": "Windows-10-10.0.26200-SP0",
+  "torch_version": "2.5.1+cpu",
+  "cuda_available": false,
+  "cuda_device_count": 0,
+  "config": {
+    "model": "fasterrcnn",
+    "train_data_root": "data/train-validation-data",
+    "test_data_root": "data/test-data",
+    "checkpoint": "outputs/fasterrcnn-final/best.pt",
+    "image_size": 448,
+    "batch_size": 4,
+    "workers": 0
+  },
+  "classes": {
+    "names": [
+      "person",
+      "car",
+      "dog"
+    ],
+    "mapping": {
+      "person": 1,
+      "car": 2,
+      "dog": 3
+    }
+  },
+  "trainable_parameters": 41087011,
+  "total_parameters": 41309411
+}

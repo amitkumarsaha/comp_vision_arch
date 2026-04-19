@@ -1,0 +1,16 @@
+{
+  "timestamp_utc": "2026-04-19T11:43:37.464243+00:00",
+  "checkpoint_path": "outputs/fasterrcnn-final/best.pt",
+  "losses": {
+    "loss_classifier": 0.11021753216615121,
+    "loss_box_reg": 0.1478972129822189,
+    "loss_objectness": 0.03000327993840129,
+    "loss_rpn_box_reg": 0.01300688980141454
+  },
+  "metrics": {
+    "person": 0.8511143922805786,
+    "car": 0.8907005786895752,
+    "dog": 0.7508004903793335,
+    "mAP@0.5": 0.8308718204498291
+  }
+}

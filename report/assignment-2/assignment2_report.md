@@ -84,25 +84,25 @@ Best per-class AP at best epoch:
 
 ### 3.2 Learning Curves and Stability
 
-![Figure 1: mAP@0.5 across epochs](../../report/plots/map_single_axis_comparison.png)
+![Figure 1: mAP@0.5 across epochs](../../outputs/viz/plots/map_single_axis_comparison.png)
 
 **Figure 1 summary:** Faster R-CNN maintains a higher mAP trajectory; DINO improves steadily and peaks at epoch 8.
 
-![Figure 2: AP per class over epochs](../../report/plots/ap_per_class_over_epochs_annotated.png)
+![Figure 2: AP per class over epochs](../../outputs/viz/plots/ap_per_class_over_epochs_annotated.png)
 
 **Figure 2 summary:** DINO reaches its strongest relative performance on `car` and `dog`, while Faster R-CNN remains dominant on all classes.
 
-![Figure 3: Training losses (DINO, Faster R-CNN, total proxy)](../../report/plots/training_losses_combined.png)
+![Figure 3: Training losses (DINO, Faster R-CNN, total proxy)](../../outputs/viz/plots/training_losses_combined.png)
 
 **Figure 3 summary:** both models show stable optimization; DINO losses decrease substantially after early epochs.
 
 ### 3.3 AP/PR and IoU Diagnostics
 
-![Figure 4: Combined precision-recall curves](../../report/plots/pr_curve_combined.png)
+![Figure 4: Combined precision-recall curves](../../outputs/viz/plots/pr_curve_combined.png)
 
 **Figure 4 summary:** PR envelopes for Faster R-CNN are consistently above DINO, matching the mAP results.
 
-![Figure 5: IoU distribution comparison](../../report/plots/iou_distribution_combined.png)
+![Figure 5: IoU distribution comparison](../../outputs/viz/plots/iou_distribution_combined.png)
 
 **Figure 5 summary:** IoU distributions confirm stronger localization quality for Faster R-CNN; DINO remains usable but less precise.
 
