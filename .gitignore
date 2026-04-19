@@ -1,5 +1,6 @@
 .idea
 .cache/
 .hf_cache/
+.venv/
 data/
 __pycache__/
