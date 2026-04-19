@@ -73,7 +73,7 @@ class ModelFactory:
 
     @staticmethod
     def load_checkpoint_payload(checkpoint_path: str | Path) -> dict:
-        return torch.load(checkpoint_path, map_location="cpu")
+        return torch.load(checkpoint_path, map_location="cpu", weights_only=False)
 
     @staticmethod
     def build(model_name: str, image_size: int, freeze_fasterrcnn_backbone: bool = False):

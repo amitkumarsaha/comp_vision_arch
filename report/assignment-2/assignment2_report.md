@@ -35,22 +35,36 @@ The main detector uses **`facebook/dinov2-small`** as a frozen feature backbone 
 Pipeline summary:
 
 1. Resize input to `448x448`
-2. Extract DINO patch tokens (discard class token)
-3. Reshape tokens into a 2D feature map
-4. Apply custom grid head for objectness, class logits, and box regression
+2. Normalize and pass image through DINOv2 backbone
+3. Extract patch tokens from `last_hidden_state` (discard class token)
+4. Reshape tokens into a 2D feature map
+5. Apply custom grid head for objectness, class logits, and box regression
 
 Head/loss design:
 
+- Projection block followed by separate classification and box towers
+- Objectness head + class head + box head
 - Objectness branch (BCE with balancing)
-- Classification branch (cross-entropy on positives)
+- Classification branch (cross-entropy on positive cells)
 - Box regression with L1 + GIoU
 - Box decoding in grid-relative center format
+
+Train/freeze policy:
+
+- **Frozen parameters:** all DINOv2 backbone parameters (`requires_grad=False`)
+- **Trainable parameters:** custom detection head parameters only
 
 Trainable parameters: **3,644,680**
 
 ### 2.2 Comparison Model: Faster R-CNN (ResNet-50 FPN)
 
 Comparison strategy is **Faster R-CNN with ResNet-50 FPN** (`torchvision`) fine-tuned on the same subset and classes.
+
+Backbone/model and fine-tuning setup:
+
+- Backbone/model: `fasterrcnn_resnet50_fpn` with pretrained `FasterRCNN_ResNet50_FPN_Weights.DEFAULT`
+- Detector head adaptation: ROI predictor replaced (`FastRCNNPredictor`) for the assignment class setup
+- Fine-tuning in this project: full-model fine-tuning by default (backbone trainable), with optional backbone freezing flag available in code
 
 Trainable parameters: **41,087,011**
 
@@ -102,30 +116,37 @@ Best per-class AP at best epoch:
 
 ### 4.1 Under Limited Compute and Limited Labels
 
-The frozen DINO strategy is parameter-efficient and demonstrates strong backbone reuse, but absolute detection accuracy is lower than a specialized supervised detector. In this project, Faster R-CNN provides clearly better mAP@0.5 and per-class AP.
+Under the current constraints (1000 training images, fixed test split, modest training budget), the preferred strategy is **Faster R-CNN (comparison model)** rather than frozen DINO + small head.  
+Although the DINO approach is more parameter-efficient, model predictions show that Faster R-CNN is consistently stronger on both classification and localization quality (higher AP/mAP, fewer missed detections, tighter boxes on difficult samples).  
+In this setting, the performance gain from a supervised detection architecture outweighs the compute savings of a frozen-backbone adaptation.
 
 ### 4.2 If More Data/Compute Were Available
 
-Likely improvements for the DINO path:
+With more labeled data and larger compute budget, strategy choice becomes more balanced.  
+Faster R-CNN would remain a strong baseline, but the DINO path would become more attractive if we:
 
-- unfreeze later DINO blocks (partial fine-tuning)
-- increase head capacity / multi-scale design
-- train longer with larger subset
+- partially unfreeze later DINO blocks,
+- increase detection-head capacity and multi-scale modeling,
+- train longer with larger subsets or full trainval data.
 
-These steps should reduce the gap while keeping representation reuse benefits.
+These changes should improve adaptation of self-supervised features to detection, and can reduce the current accuracy gap while keeping transfer/reuse advantages.
 
 ### 4.3 Link to Assignment 1 Themes
 
-- **Backbone vs head:** DINO backbone is reusable; task performance depends strongly on the head and training objective.
-- **Self-supervised vs supervised pretraining:** self-supervised features transfer well, but supervised detection architectures still lead on this benchmark.
-- **Backbone reuse across tasks:** the DINO detector confirms transferable representations with a smaller trainable adaptation layer.
+- **Backbones vs heads:** observed results reinforce that backbone quality alone is not sufficient; the detection head design and loss formulation strongly determine end-task performance.
+- **Supervised vs self-supervised pretraining:** DINO (self-supervised) transfers meaningfully, but supervised detection pretraining (Faster R-CNN stack) is more effective in this low-data detection setup.
+- **Reusing one backbone across tasks:** frozen DINO remains strategically useful because one pretrained representation can be reused across tasks with lightweight task-specific heads, even when accuracy is lower than specialized supervised detectors.
 
 ## 5. Conclusion
 
-The assignment requirements are satisfied with two strategies:
+This project satisfies the assignment requirements by comparing:
 
-1. Frozen DINOv2-small backbone + custom detection head
-2. Faster R-CNN ResNet-50 FPN baseline
+1. **Frozen DINOv2-small + custom detection head**
+2. **Faster R-CNN (ResNet-50 FPN) fine-tuned baseline**
 
-Using the same train subset and test split, DINO achieved **0.4967 mAP@0.5** and Faster R-CNN achieved **0.8309 mAP@0.5**.  
-The main outcome is that pretrained self-supervised backbones are effective and reusable, but a detection-specific supervised model still gives stronger accuracy under this setup.
+Using the same training subset (1000 images; classes: person/car/dog) and the same VOC2007 test protocol, Faster R-CNN clearly outperformed the frozen DINO-head model on both detection accuracy and localization quality. Best test performance was:
+
+- **DINO + head:** mAP@0.5 = **0.4967**
+- **Faster R-CNN:** mAP@0.5 = **0.8309**
+
+The key practical finding is that, under limited labeled data and limited compute, a supervised detection architecture remains the stronger choice for final accuracy. However, the DINO approach still demonstrates meaningful transfer with far fewer trainable parameters, making it a viable parameter-efficient strategy and a strong foundation for future improvement (e.g., partial unfreezing and stronger multi-scale heads when more compute/data are available).

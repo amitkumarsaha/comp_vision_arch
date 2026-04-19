@@ -17,7 +17,7 @@ For the Assignment 2 brief, this maps to:
 ## Setup
 
 ```bash
-python -m venv .venv
+python -3.11 -m venv .venv
 # Windows (PowerShell)
 .venv\Scripts\Activate.ps1
 
@@ -27,7 +27,7 @@ python -m venv .venv
 # macOS / Linux
 source .venv/bin/activate
 
-pip install -r requirements.txt
+python -m pip install -r requirements.txt
 ```
 
 If you are working on this repository on macOS with restricted cache permissions, create local cache directories first:
@@ -80,12 +80,6 @@ The successful final runs used:
 Use local caches plus offline flags once `facebook/dinov2-small` has been downloaded or cached once on the machine:
 
 ```bash
-TORCH_HOME="$PWD/.cache/torch" \
-HF_HOME="$HOME/.cache/huggingface" \
-MPLCONFIGDIR="$PWD/.cache/matplotlib" \
-XDG_CACHE_HOME="$PWD/.cache" \
-HF_HUB_OFFLINE=1 \
-TRANSFORMERS_OFFLINE=1 \
 python -m src.train \
   --model dino \
   --train-data-root data/train-validation-data \
@@ -101,10 +95,6 @@ python -m src.train \
 ## Train the Faster R-CNN baseline
 
 ```bash
-TORCH_HOME="$PWD/.cache/torch" \
-HF_HOME="$PWD/.cache/huggingface" \
-MPLCONFIGDIR="$PWD/.cache/matplotlib" \
-XDG_CACHE_HOME="$PWD/.cache" \
 python -m src.train \
   --model fasterrcnn \
   --train-data-root data/train-validation-data \
@@ -117,17 +107,9 @@ python -m src.train \
   --workers 0
 ```
 
-## Evaluate a checkpoint
-
-The evaluation script now reads `image_size` from checkpoint metadata automatically, so you do not need to pass `--image-size` when the checkpoint was trained at `448`.
+## Evaluate DINO
 
 ```bash
-TORCH_HOME="$PWD/.cache/torch" \
-HF_HOME="$HOME/.cache/huggingface" \
-MPLCONFIGDIR="$PWD/.cache/matplotlib" \
-XDG_CACHE_HOME="$PWD/.cache" \
-HF_HUB_OFFLINE=1 \
-TRANSFORMERS_OFFLINE=1 \
 python -m src.evaluate \
   --model dino \
   --train-data-root data/train-validation-data \
@@ -135,15 +117,19 @@ python -m src.evaluate \
   --checkpoint outputs/dino-final/best.pt
 ```
 
+## Evaluate Faster R-CNN
+
+```bash
+python -m src.evaluate \
+  --model fasterrcnn \
+  --train-data-root data/train-validation-data \
+  --test-data-root data/test-data \
+  --checkpoint outputs/fasterrcnn-final/best.pt
+```
+
 ## Export qualitative predictions
 
 ```bash
-TORCH_HOME="$PWD/.cache/torch" \
-HF_HOME="$HOME/.cache/huggingface" \
-MPLCONFIGDIR="$PWD/.cache/matplotlib" \
-XDG_CACHE_HOME="$PWD/.cache" \
-HF_HUB_OFFLINE=1 \
-TRANSFORMERS_OFFLINE=1 \
 python -m src.visualise \
   --model dino \
   --train-data-root data/train-validation-data \
@@ -153,15 +139,9 @@ python -m src.visualise \
   --num-images 3
 ```
 
-## Export side-by-side comparison figures
+## Export comparison figures
 
 ```bash
-TORCH_HOME="$PWD/.cache/torch" \
-HF_HOME="$HOME/.cache/huggingface" \
-MPLCONFIGDIR="$PWD/.cache/matplotlib" \
-XDG_CACHE_HOME="$PWD/.cache" \
-HF_HUB_OFFLINE=1 \
-TRANSFORMERS_OFFLINE=1 \
 python -m src.visualise \
   --dino-checkpoint outputs/dino-final/best.pt \
   --fasterrcnn-checkpoint outputs/fasterrcnn-final/best.pt \
@@ -171,15 +151,24 @@ python -m src.visualise \
   --num-images 3
 ```
 
+## Generate report plots
+```bash
+python -m src.report_plots \
+  --dino-summary outputs/dino-final/summary.json \ 
+  --faster-summary outputs/fasterrcnn-final/summary.json \
+  --dino-eval-data outputs/dino-final/audit/evaluation_plot_data.json \
+  --faster-eval-data outputs/fasterrcnn-final/audit/evaluation_plot_data.json \
+  --output-dir outputs/plots
+```
+
 ## Notes
 
 - The DINO-based model keeps the pretrained backbone frozen by default.
-- The training split is loaded from `data/train-validation-data` and the official VOC2007 test split from `data/test-data`.
-- The Faster R-CNN baseline fine-tunes a supervised detector on the exact same train subset and test split.
-- All metrics are computed on the **same test split** and **same three classes**.
-- On this Apple Silicon machine, PyTorch MPS was unavailable in practice, so all successful final runs were CPU-based.
-- If your hardware is limited, keep `--subset-size` around `500-1000`.
-- If `transformers` tries to download DINO again during evaluation or visualization, point `HF_HOME` at the existing Hugging Face cache and use offline flags.
+- The official VOC2007 training split is loaded from `data/train-validation-data` and the official VOC2007 test split from `data/test-data`.
+- The Faster R-CNN baseline fine-tunes a supervised detector on the exact same train subset split.
+- All metrics are computed on the **same test split** and **same three classes** `{person, cat, car}`.
+- All successful final runs were CPU-based.
+- Since the hardware is limited `--subset-size` to `1000`.
 
 ## Audit Trail
 

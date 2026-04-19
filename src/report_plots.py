@@ -8,336 +8,302 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import numpy as np
 
-from src.utils import project_path
-
-def _load_json(path: str | Path) -> dict:
-    with Path(path).open("r", encoding="utf-8") as handle:
-        return json.load(handle)
-
-
-def _ensure_dir(path: Path) -> Path:
-    path.mkdir(parents=True, exist_ok=True)
-    return path
-
-
-def _series(history: list[dict], section: str, key: str) -> list[float]:
-    values = []
-    for row in history:
-        values.append(float(row[section][key]))
-    return values
-
-
-def _epochs(history: list[dict]) -> list[int]:
-    return [int(row["epoch"]) for row in history]
-
-
-def _best_epoch(history: list[dict]) -> int:
-    return max(history, key=lambda row: row["eval"]["mAP@0.5"])["epoch"]
+from src.utils import VOC_CLASSES
 
 
 @dataclass(frozen=True)
 class PlotConfig:
     dino_summary: str
     faster_summary: str
-    dino_progress: str
-    faster_progress: str
-    output_root: str
+    dino_eval_data: str
+    faster_eval_data: str
+    output_dir: str
 
 
 class ReportPlotGenerator:
+    DINO_COLOR = "#1f77b4"
+    FASTER_COLOR = "#ff7f0e"
+
     def __init__(self, config: PlotConfig) -> None:
         self.config = config
-        self.output_root = Path(config.output_root)
-        self.training_dir = _ensure_dir(self.output_root / "training_stats")
-        self.performance_dir = _ensure_dir(self.output_root / "performance_comparison")
-        self.efficiency_dir = _ensure_dir(self.output_root / "efficiency_analysis")
-        self.tables_dir = _ensure_dir(self.output_root / "report_tables")
-        self.audit_dir = _ensure_dir(self.output_root / "audit")
+        self.output_dir = Path(config.output_dir)
+        self.output_dir.mkdir(parents=True, exist_ok=True)
+        self.dino_summary = self._load_json(config.dino_summary)
+        self.faster_summary = self._load_json(config.faster_summary)
+        self.dino_eval_data = self._load_json(config.dino_eval_data)
+        self.faster_eval_data = self._load_json(config.faster_eval_data)
 
-        self.dino_summary = _load_json(config.dino_summary)
-        self.faster_summary = _load_json(config.faster_summary)
-        self.dino_progress = _load_json(config.dino_progress)
-        self.faster_progress = _load_json(config.faster_progress)
+    @staticmethod
+    def _load_json(path: str | Path) -> dict:
+        with Path(path).open("r", encoding="utf-8") as handle:
+            return json.load(handle)
 
-        self.colors = {
-            "dino": "#1f6feb",
-            "faster": "#d97706",
-            "person": "#0f766e",
-            "car": "#b91c1c",
-            "dog": "#6d28d9",
-        }
+    @staticmethod
+    def _epochs(history: list[dict]) -> list[int]:
+        return [int(row["epoch"]) for row in history]
+
+    @staticmethod
+    def _series(history: list[dict], section: str, key: str) -> list[float]:
+        return [float(row[section][key]) for row in history]
+
+    @staticmethod
+    def _pr_curve(eval_data: dict, class_name: str) -> tuple[np.ndarray, np.ndarray, float]:
+        curve = (
+            eval_data.get("plot_data", {})
+            .get("pr_curves", {})
+            .get(class_name, {})
+        )
+        recall = np.array(curve.get("recall", [0.0, 1.0]), dtype=np.float32)
+        precision = np.array(curve.get("precision", [0.0, 0.0]), dtype=np.float32)
+        ap = float(curve.get("ap", 0.0))
+        return recall, precision, ap
+
+    @staticmethod
+    def _iou_values(eval_data: dict, class_name: str) -> np.ndarray:
+        values = (
+            eval_data.get("plot_data", {})
+            .get("iou_distribution", {})
+            .get(class_name, [])
+        )
+        return np.array(values, dtype=np.float32)
+
+    def _plot_map_single_axis(self) -> None:
+        d_hist = self.dino_summary["history"]
+        f_hist = self.faster_summary["history"]
+        epochs = self._epochs(d_hist)
+        d_map = self._series(d_hist, "eval", "mAP@0.5")
+        f_map = self._series(f_hist, "eval", "mAP@0.5")
+
+        fig, axis = plt.subplots(figsize=(10, 5))
+        axis.plot(epochs, d_map, color=self.DINO_COLOR, marker="o", linewidth=2, label="DINO")
+        axis.plot(epochs, f_map, color=self.FASTER_COLOR, marker="s", linewidth=2, label="Faster R-CNN")
+
+        d_best = max(d_map)
+        f_best = max(f_map)
+        axis.axhline(d_best, color=self.DINO_COLOR, linestyle="--", linewidth=1.5, alpha=0.85)
+        axis.axhline(f_best, color=self.FASTER_COLOR, linestyle="--", linewidth=1.5, alpha=0.85)
+        axis.annotate(
+            f"Best DINO: {d_best:.3f}",
+            xy=(epochs[d_map.index(d_best)], d_best),
+            xytext=(8, 10),
+            textcoords="offset points",
+            color=self.DINO_COLOR,
+            fontsize=10,
+        )
+        axis.annotate(
+            f"Best Faster R-CNN: {f_best:.3f}",
+            xy=(epochs[f_map.index(f_best)], f_best),
+            xytext=(8, -16),
+            textcoords="offset points",
+            color=self.FASTER_COLOR,
+            fontsize=10,
+        )
+
+        axis.set_title("mAP@0.5 over Epochs (Single Axis)")
+        axis.set_xlabel("Epoch")
+        axis.set_ylabel("mAP@0.5")
+        axis.set_ylim(0.0, 1.0)
+        axis.grid(True, alpha=0.3)
+        axis.legend()
+        fig.tight_layout()
+        fig.savefig(self.output_dir / "map_single_axis_comparison.png", dpi=160, bbox_inches="tight")
+        plt.close(fig)
+
+    def _plot_ap_per_class_annotated(self) -> None:
+        classes = ["person", "car", "dog"]
+        d_hist = self.dino_summary["history"]
+        f_hist = self.faster_summary["history"]
+        epochs = self._epochs(d_hist)
+
+        fig, axes = plt.subplots(1, 3, figsize=(16, 5), sharey=False)
+        for axis, cls in zip(axes, classes):
+            d_vals = self._series(d_hist, "eval", cls)
+            f_vals = self._series(f_hist, "eval", cls)
+            axis.plot(epochs, d_vals, color=self.DINO_COLOR, marker="o", linewidth=2, label="DINO")
+            axis.plot(epochs, f_vals, color=self.FASTER_COLOR, marker="s", linewidth=2, label="Faster R-CNN")
+
+            d_best = max(d_vals)
+            f_best = max(f_vals)
+            d_idx = d_vals.index(d_best)
+            f_idx = f_vals.index(f_best)
+            d_x = epochs[d_idx]
+            f_x = epochs[f_idx]
+
+            axis.axhline(d_best, color=self.DINO_COLOR, linestyle="--", linewidth=1.2, alpha=0.8)
+            axis.axhline(f_best, color=self.FASTER_COLOR, linestyle="--", linewidth=1.2, alpha=0.8)
+
+            if cls == "car":
+                d_text_x = max(min(epochs) + 0.4, d_x - 2.4)
+                d_text_ha = "right"
+            elif cls == "dog":
+                d_text_x = max(min(epochs) + 0.8, d_x - 1.3)
+                d_text_ha = "right"
+            else:
+                d_text_x = d_x + 0.45 if d_x < max(epochs) - 1 else d_x - 2.2
+                d_text_ha = "left" if d_text_x >= d_x else "right"
+            d_text_y = min(0.95, d_best + 0.06) if d_best <= 0.9 else max(0.05, d_best - 0.08)
+
+            axis.annotate(
+                f"Best DINO AP@0.5: {d_best:.3f}",
+                xy=(d_x, d_best),
+                xycoords="data",
+                xytext=(d_text_x, d_text_y),
+                textcoords="data",
+                ha=d_text_ha,
+                va="bottom" if d_text_y >= d_best else "top",
+                fontsize=8,
+                color=self.DINO_COLOR,
+                bbox=dict(boxstyle="round,pad=0.25", facecolor="white", edgecolor=self.DINO_COLOR, linewidth=1.0, alpha=0.95),
+                arrowprops=dict(arrowstyle="-", color=self.DINO_COLOR, lw=1.0, alpha=0.9),
+                annotation_clip=True,
+            )
+
+            f_text_x = f_x + 0.45 if f_x < max(epochs) - 1 else f_x - 2.2
+            if cls == "dog":
+                f_text_y = min(0.95, f_best + 0.07)
+                f_va = "bottom"
+            else:
+                f_text_y = max(0.05, f_best - 0.08 if f_best > 0.88 else f_best - 0.06)
+                f_va = "top"
+            axis.annotate(
+                f"Best Faster R-CNN AP@0.5: {f_best:.3f}",
+                xy=(f_x, f_best),
+                xycoords="data",
+                xytext=(f_text_x, f_text_y),
+                textcoords="data",
+                ha="left" if f_text_x >= f_x else "right",
+                va=f_va,
+                fontsize=8,
+                color=self.FASTER_COLOR,
+                bbox=dict(boxstyle="round,pad=0.25", facecolor="white", edgecolor=self.FASTER_COLOR, linewidth=1.0, alpha=0.95),
+                arrowprops=dict(arrowstyle="-", color=self.FASTER_COLOR, lw=1.0, alpha=0.9),
+            )
+
+            axis.set_title(f"AP@0.5 - {cls}")
+            axis.set_xlabel("Epoch")
+            axis.set_ylabel("AP@0.5")
+            axis.set_ylim(0.0, 1.0)
+            axis.set_yticks([0.0, 0.2, 0.4, 0.6, 0.8, 1.0])
+            axis.grid(True, alpha=0.3)
+            axis.legend(loc="lower right", frameon=True)
+
+        fig.tight_layout()
+        fig.savefig(self.output_dir / "ap_per_class_over_epochs_annotated.png", dpi=160, bbox_inches="tight")
+        plt.close(fig)
+
+    def _plot_training_losses_combined(self) -> None:
+        d_hist = self.dino_summary["history"]
+        f_hist = self.faster_summary["history"]
+        epochs = self._epochs(d_hist)
+
+        d_total = self._series(d_hist, "train", "loss")
+        f_total = [
+            float(row["train"]["loss_classifier"])
+            + float(row["train"]["loss_box_reg"])
+            + float(row["train"]["loss_objectness"])
+            + float(row["train"]["loss_rpn_box_reg"])
+            for row in f_hist
+        ]
+
+        fig, axes = plt.subplots(1, 3, figsize=(18, 5), sharex=True)
+        axes[0].plot(epochs, d_total, color=self.DINO_COLOR, marker="o", linewidth=2)
+        axes[0].set_title("DINO Total Train Loss")
+        axes[0].set_xlabel("Epoch")
+        axes[0].set_ylabel("Loss")
+        axes[0].grid(True, alpha=0.3)
+
+        axes[1].plot(epochs, f_total, color=self.FASTER_COLOR, marker="s", linewidth=2)
+        axes[1].set_title("Faster R-CNN Total Train Loss")
+        axes[1].set_xlabel("Epoch")
+        axes[1].set_ylabel("Loss")
+        axes[1].grid(True, alpha=0.3)
+
+        axes[2].plot(epochs, d_total, color=self.DINO_COLOR, marker="o", linewidth=2, label="DINO")
+        axes[2].plot(epochs, f_total, color=self.FASTER_COLOR, marker="s", linewidth=2, label="Faster R-CNN")
+        axes[2].set_title("Total Train Loss Proxy")
+        axes[2].set_xlabel("Epoch")
+        axes[2].set_ylabel("Loss")
+        axes[2].grid(True, alpha=0.3)
+        axes[2].legend()
+
+        fig.tight_layout()
+        fig.savefig(self.output_dir / "training_losses_combined.png", dpi=160, bbox_inches="tight")
+        plt.close(fig)
+
+    def _plot_pr_curve_combined(self) -> None:
+        fig, axes = plt.subplots(1, 3, figsize=(18, 5), sharey=True)
+        for axis, cls in zip(axes, VOC_CLASSES):
+            d_recall, d_precision, d_ap = self._pr_curve(self.dino_eval_data, cls)
+            f_recall, f_precision, f_ap = self._pr_curve(self.faster_eval_data, cls)
+
+            axis.plot(d_recall, d_precision, linewidth=2, color=self.DINO_COLOR, label=f"DINO (AP={d_ap:.3f})")
+            axis.fill_between(d_recall, d_precision, alpha=0.10, color=self.DINO_COLOR)
+            axis.plot(f_recall, f_precision, linewidth=2, color=self.FASTER_COLOR, label=f"Faster R-CNN (AP={f_ap:.3f})")
+            axis.fill_between(f_recall, f_precision, alpha=0.10, color=self.FASTER_COLOR)
+
+            axis.set_title(f"PR Curve - {cls}")
+            axis.set_xlabel("Recall")
+            axis.set_xlim(0.0, 1.0)
+            axis.set_ylim(0.0, 1.0)
+            axis.grid(True, alpha=0.3)
+            axis.legend(loc="lower left")
+        axes[0].set_ylabel("Precision")
+        fig.tight_layout()
+        fig.savefig(self.output_dir / "pr_curve_combined.png", dpi=160, bbox_inches="tight")
+        plt.close(fig)
+
+    def _plot_iou_distribution_combined(self) -> None:
+        fig, axes = plt.subplots(1, 3, figsize=(18, 5), sharey=True)
+        bins = np.linspace(0.0, 1.0, 21)
+        for axis, cls in zip(axes, VOC_CLASSES):
+            d_iou = self._iou_values(self.dino_eval_data, cls)
+            f_iou = self._iou_values(self.faster_eval_data, cls)
+
+            if d_iou.size:
+                axis.hist(d_iou, bins=bins, density=True, alpha=0.5, color=self.DINO_COLOR, label=f"DINO (n={d_iou.size})")
+            if f_iou.size:
+                axis.hist(f_iou, bins=bins, density=True, alpha=0.5, color=self.FASTER_COLOR, label=f"Faster R-CNN (n={f_iou.size})")
+
+            axis.set_title(f"IoU Distribution - {cls}")
+            axis.set_xlabel("IoU")
+            axis.set_xlim(0.0, 1.0)
+            axis.grid(True, alpha=0.3)
+            axis.legend()
+        axes[0].set_ylabel("Density")
+        fig.tight_layout()
+        fig.savefig(self.output_dir / "iou_distribution_combined.png", dpi=160, bbox_inches="tight")
+        plt.close(fig)
 
     def run(self) -> None:
-        generated = []
-        generated.extend(self._plot_map_curve())
-        generated.extend(self._plot_per_class_curves())
-        generated.extend(self._plot_dino_loss_components())
-        generated.extend(self._plot_faster_loss_components())
-        generated.extend(self._plot_epoch_durations())
-        generated.extend(self._plot_best_map_bar())
-        generated.extend(self._plot_best_per_class_bar())
-        generated.extend(self._plot_best_vs_final_bar())
-        generated.extend(self._plot_efficiency_scatter())
-        generated.extend(self._plot_ap_per_million_params())
-        generated.extend(self._plot_summary_table())
-        self._write_manifest(generated)
-
-    def _save(self, figure: plt.Figure, path: Path) -> dict:
-        figure.tight_layout()
-        figure.savefig(path, dpi=180, bbox_inches="tight")
-        plt.close(figure)
-        return {"file": project_path(path), "category": path.parent.name, "name": path.name}
-
-    def _plot_map_curve(self) -> list[dict]:
-        dino_history = self.dino_summary["history"]
-        faster_history = self.faster_summary["history"]
-        epochs = _epochs(dino_history)
-
-        figure, axis = plt.subplots(figsize=(10, 6))
-        axis.plot(epochs, _series(dino_history, "eval", "mAP@0.5"), marker="o", linewidth=2.5, color=self.colors["dino"], label="DINOv2 + custom head")
-        axis.plot(epochs, _series(faster_history, "eval", "mAP@0.5"), marker="s", linewidth=2.5, color=self.colors["faster"], label="Faster R-CNN")
-        axis.set_title("Validation mAP@0.5 Across Epochs")
-        axis.set_xlabel("Epoch")
-        axis.set_ylabel("mAP@0.5")
-        axis.grid(True, alpha=0.25)
-        axis.legend()
-        return [self._save(figure, self.training_dir / "map_curve_comparison.png")]
-
-    def _plot_per_class_curves(self) -> list[dict]:
-        dino_history = self.dino_summary["history"]
-        faster_history = self.faster_summary["history"]
-        epochs = _epochs(dino_history)
-        classes = ["person", "car", "dog"]
-
-        figure, axes = plt.subplots(1, 3, figsize=(18, 5), sharey=True)
-        for axis, class_name in zip(axes, classes):
-            axis.plot(epochs, _series(dino_history, "eval", class_name), marker="o", linewidth=2, color=self.colors["dino"], label="DINO")
-            axis.plot(epochs, _series(faster_history, "eval", class_name), marker="s", linewidth=2, color=self.colors["faster"], label="Faster R-CNN")
-            axis.set_title(f"{class_name.title()} AP@0.5")
-            axis.set_xlabel("Epoch")
-            axis.grid(True, alpha=0.25)
-        axes[0].set_ylabel("AP@0.5")
-        axes[0].legend()
-        return [self._save(figure, self.training_dir / "per_class_ap_curves.png")]
-
-    def _plot_dino_loss_components(self) -> list[dict]:
-        history = self.dino_summary["history"]
-        epochs = _epochs(history)
-        keys = [
-            ("loss", "Total loss"),
-            ("loss_obj", "Objectness"),
-            ("loss_cls", "Classification"),
-            ("loss_l1", "Box L1"),
-            ("loss_giou", "GIoU"),
-        ]
-        figure, axis = plt.subplots(figsize=(10, 6))
-        for key, label in keys:
-            axis.plot(epochs, _series(history, "train", key), marker="o", linewidth=2, label=label)
-        axis.set_title("DINO Training Loss Components")
-        axis.set_xlabel("Epoch")
-        axis.set_ylabel("Loss")
-        axis.grid(True, alpha=0.25)
-        axis.legend()
-        return [self._save(figure, self.training_dir / "dino_loss_components.png")]
-
-    def _plot_faster_loss_components(self) -> list[dict]:
-        history = self.faster_summary["history"]
-        epochs = _epochs(history)
-        keys = [
-            ("loss_classifier", "Classifier"),
-            ("loss_box_reg", "Box regression"),
-            ("loss_objectness", "Objectness"),
-            ("loss_rpn_box_reg", "RPN box regression"),
-        ]
-        figure, axis = plt.subplots(figsize=(10, 6))
-        for key, label in keys:
-            axis.plot(epochs, _series(history, "train", key), marker="o", linewidth=2, label=label)
-        axis.set_title("Faster R-CNN Training Loss Components")
-        axis.set_xlabel("Epoch")
-        axis.set_ylabel("Loss")
-        axis.grid(True, alpha=0.25)
-        axis.legend()
-        return [self._save(figure, self.training_dir / "fasterrcnn_loss_components.png")]
-
-    def _plot_epoch_durations(self) -> list[dict]:
-        dino_minutes = np.array(self.dino_progress["epoch_durations_seconds"], dtype=float) / 60.0
-        faster_minutes = np.array(self.faster_progress["epoch_durations_seconds"], dtype=float) / 60.0
-        epochs = np.arange(1, min(len(dino_minutes), len(faster_minutes)) + 1)
-
-        figure, axis = plt.subplots(figsize=(10, 6))
-        width = 0.38
-        axis.bar(epochs - width / 2, dino_minutes[: len(epochs)], width=width, color=self.colors["dino"], label="DINO")
-        axis.bar(epochs + width / 2, faster_minutes[: len(epochs)], width=width, color=self.colors["faster"], label="Faster R-CNN")
-        axis.set_title("Epoch Duration Comparison")
-        axis.set_xlabel("Epoch")
-        axis.set_ylabel("Minutes")
-        axis.grid(True, axis="y", alpha=0.25)
-        axis.legend()
-        return [self._save(figure, self.training_dir / "epoch_duration_comparison.png")]
-
-    def _plot_best_map_bar(self) -> list[dict]:
-        labels = ["DINO", "Faster R-CNN"]
-        values = [float(self.dino_summary["best_map_50"]), float(self.faster_summary["best_map_50"])]
-        colors = [self.colors["dino"], self.colors["faster"]]
-
-        figure, axis = plt.subplots(figsize=(8, 5))
-        bars = axis.bar(labels, values, color=colors)
-        axis.set_title("Best Validation mAP@0.5")
-        axis.set_ylabel("mAP@0.5")
-        axis.set_ylim(0, 1.0)
-        axis.grid(True, axis="y", alpha=0.25)
-        for bar, value in zip(bars, values):
-            axis.text(bar.get_x() + bar.get_width() / 2, value + 0.02, f"{value:.3f}", ha="center", va="bottom")
-        return [self._save(figure, self.performance_dir / "best_map_bar.png")]
-
-    def _plot_best_per_class_bar(self) -> list[dict]:
-        dino_best = max(self.dino_summary["history"], key=lambda row: row["eval"]["mAP@0.5"])["eval"]
-        faster_best = max(self.faster_summary["history"], key=lambda row: row["eval"]["mAP@0.5"])["eval"]
-        classes = ["person", "car", "dog"]
-        x = np.arange(len(classes))
-        width = 0.36
-
-        figure, axis = plt.subplots(figsize=(9, 5))
-        dino_vals = [float(dino_best[name]) for name in classes]
-        faster_vals = [float(faster_best[name]) for name in classes]
-        axis.bar(x - width / 2, dino_vals, width=width, color=self.colors["dino"], label="DINO")
-        axis.bar(x + width / 2, faster_vals, width=width, color=self.colors["faster"], label="Faster R-CNN")
-        axis.set_xticks(x, [name.title() for name in classes])
-        axis.set_ylim(0, 1.0)
-        axis.set_ylabel("AP@0.5")
-        axis.set_title("Best Per-Class AP Comparison")
-        axis.grid(True, axis="y", alpha=0.25)
-        axis.legend()
-        return [self._save(figure, self.performance_dir / "best_per_class_ap_bar.png")]
-
-    def _plot_best_vs_final_bar(self) -> list[dict]:
-        labels = ["DINO best", "DINO final", "Faster best", "Faster final"]
-        values = [
-            float(self.dino_summary["best_map_50"]),
-            float(self.dino_summary["history"][-1]["eval"]["mAP@0.5"]),
-            float(self.faster_summary["best_map_50"]),
-            float(self.faster_summary["history"][-1]["eval"]["mAP@0.5"]),
-        ]
-        colors = [self.colors["dino"], "#6aa6ff", self.colors["faster"], "#f5a344"]
-
-        figure, axis = plt.subplots(figsize=(9, 5))
-        bars = axis.bar(labels, values, color=colors)
-        axis.set_title("Best vs Final Validation mAP@0.5")
-        axis.set_ylabel("mAP@0.5")
-        axis.set_ylim(0, 1.0)
-        axis.grid(True, axis="y", alpha=0.25)
-        for bar, value in zip(bars, values):
-            axis.text(bar.get_x() + bar.get_width() / 2, value + 0.02, f"{value:.3f}", ha="center", va="bottom")
-        return [self._save(figure, self.performance_dir / "best_vs_final_map_bar.png")]
-
-    def _plot_efficiency_scatter(self) -> list[dict]:
-        params = np.array(
-            [
-                float(self.dino_summary["trainable_parameters"]) / 1_000_000,
-                float(self.faster_summary["trainable_parameters"]) / 1_000_000,
-            ]
-        )
-        scores = np.array([float(self.dino_summary["best_map_50"]), float(self.faster_summary["best_map_50"])])
-        labels = ["DINO", "Faster R-CNN"]
-        colors = [self.colors["dino"], self.colors["faster"]]
-
-        figure, axis = plt.subplots(figsize=(8, 6))
-        axis.scatter(params, scores, s=180, c=colors)
-        for x, y, label in zip(params, scores, labels):
-            axis.text(x + 0.6, y, label, va="center")
-        axis.set_title("Accuracy vs Trainable Parameters")
-        axis.set_xlabel("Trainable parameters (millions)")
-        axis.set_ylabel("Best mAP@0.5")
-        axis.grid(True, alpha=0.25)
-        return [self._save(figure, self.efficiency_dir / "accuracy_vs_trainable_params.png")]
-
-    def _plot_ap_per_million_params(self) -> list[dict]:
-        labels = ["DINO", "Faster R-CNN"]
-        values = [
-            float(self.dino_summary["best_map_50"]) / (float(self.dino_summary["trainable_parameters"]) / 1_000_000),
-            float(self.faster_summary["best_map_50"]) / (float(self.faster_summary["trainable_parameters"]) / 1_000_000),
-        ]
-        colors = [self.colors["dino"], self.colors["faster"]]
-
-        figure, axis = plt.subplots(figsize=(8, 5))
-        bars = axis.bar(labels, values, color=colors)
-        axis.set_title("Best mAP@0.5 per Million Trainable Parameters")
-        axis.set_ylabel("mAP@0.5 / million params")
-        axis.grid(True, axis="y", alpha=0.25)
-        for bar, value in zip(bars, values):
-            axis.text(bar.get_x() + bar.get_width() / 2, value + max(values) * 0.03, f"{value:.3f}", ha="center", va="bottom")
-        return [self._save(figure, self.efficiency_dir / "map_per_million_params.png")]
-
-    def _plot_summary_table(self) -> list[dict]:
-        dino_best = max(self.dino_summary["history"], key=lambda row: row["eval"]["mAP@0.5"])
-        faster_best = max(self.faster_summary["history"], key=lambda row: row["eval"]["mAP@0.5"])
-        headers = ["Model", "Best epoch", "Best mAP@0.5", "Person", "Car", "Dog", "Trainable params"]
-        rows = [
-            [
-                "DINO",
-                str(dino_best["epoch"]),
-                f'{dino_best["eval"]["mAP@0.5"]:.3f}',
-                f'{dino_best["eval"]["person"]:.3f}',
-                f'{dino_best["eval"]["car"]:.3f}',
-                f'{dino_best["eval"]["dog"]:.3f}',
-                f'{int(self.dino_summary["trainable_parameters"]):,}',
-            ],
-            [
-                "Faster R-CNN",
-                str(faster_best["epoch"]),
-                f'{faster_best["eval"]["mAP@0.5"]:.3f}',
-                f'{faster_best["eval"]["person"]:.3f}',
-                f'{faster_best["eval"]["car"]:.3f}',
-                f'{faster_best["eval"]["dog"]:.3f}',
-                f'{int(self.faster_summary["trainable_parameters"]):,}',
-            ],
-        ]
-
-        figure, axis = plt.subplots(figsize=(11, 2.6))
-        axis.axis("off")
-        table = axis.table(cellText=rows, colLabels=headers, cellLoc="center", loc="center")
-        table.auto_set_font_size(False)
-        table.set_fontsize(10)
-        table.scale(1, 1.6)
-        axis.set_title("Experiment Summary Table", pad=14)
-        return [self._save(figure, self.tables_dir / "experiment_summary_table.png")]
-
-    def _write_manifest(self, generated: list[dict]) -> None:
-        payload = {
-            "dino_summary": project_path(self.config.dino_summary),
-            "faster_summary": project_path(self.config.faster_summary),
-            "dino_progress": project_path(self.config.dino_progress),
-            "faster_progress": project_path(self.config.faster_progress),
-            "output_root": project_path(self.output_root),
-            "generated_files": generated,
-            "best_epochs": {
-                "dino": _best_epoch(self.dino_summary["history"]),
-                "fasterrcnn": _best_epoch(self.faster_summary["history"]),
-            },
-        }
-        with (self.audit_dir / "report_plots_manifest.json").open("w", encoding="utf-8") as handle:
-            json.dump(payload, handle, indent=2)
+        self._plot_map_single_axis()
+        self._plot_ap_per_class_annotated()
+        self._plot_training_losses_combined()
+        self._plot_pr_curve_combined()
+        self._plot_iou_distribution_combined()
 
 
-def parse_args() -> PlotConfig:
-    parser = argparse.ArgumentParser(description="Generate report-ready comparison plots from saved training outputs.")
-    parser.add_argument("--dino-summary", default="outputs/dino-final/summary.json")
-    parser.add_argument("--faster-summary", default="outputs/fasterrcnn-final/summary.json")
-    parser.add_argument("--dino-progress", default="outputs/dino-final/audit/training_progress.json")
-    parser.add_argument("--faster-progress", default="outputs/fasterrcnn-final/audit/training_progress.json")
-    parser.add_argument("--output-root", default="outputs/viz")
-    args = parser.parse_args()
-    return PlotConfig(
-        dino_summary=args.dino_summary,
-        faster_summary=args.faster_summary,
-        dino_progress=args.dino_progress,
-        faster_progress=args.faster_progress,
-        output_root=args.output_root,
+def parse_args():
+    parser = argparse.ArgumentParser(
+        description="Generate report plots from precomputed training and evaluation artifacts."
     )
+    parser.add_argument("--dino-summary", type=str, default="outputs/dino-final/summary.json")
+    parser.add_argument("--faster-summary", type=str, default="outputs/fasterrcnn-final/summary.json")
+    parser.add_argument("--dino-eval-data", type=str, default="outputs/dino-final/audit/evaluation_plot_data.json")
+    parser.add_argument("--faster-eval-data", type=str, default="outputs/fasterrcnn-final/audit/evaluation_plot_data.json")
+    parser.add_argument("--output-dir", type=str, default="output/plots")
+    return parser.parse_args()
 
 
 def main() -> None:
-    ReportPlotGenerator(parse_args()).run()
+    args = parse_args()
+    config = PlotConfig(
+        dino_summary=args.dino_summary,
+        faster_summary=args.faster_summary,
+        dino_eval_data=args.dino_eval_data,
+        faster_eval_data=args.faster_eval_data,
+        output_dir=args.output_dir,
+    )
+    ReportPlotGenerator(config).run()
 
 
 if __name__ == "__main__":
