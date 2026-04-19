@@ -1,6 +1,5 @@
 .idea
-/unused/
-/reports/
-/data/
-outputs/viz/
+.cache/
+.hf_cache/
+data/
 __pycache__/

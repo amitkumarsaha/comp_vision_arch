@@ -1,0 +1,28 @@
+{
+  "timestamp_utc": "2026-04-19T18:42:53.067923+00:00",
+  "mode": "fasterrcnn",
+  "checkpoint_path": "outputs/fasterrcnn-final/best.pt",
+  "dino_checkpoint_path": null,
+  "fasterrcnn_checkpoint_path": null,
+  "output_dir": "outputs/viz/fasterrcnn-final",
+  "files": [
+    {
+      "image_id": "000001.jpg",
+      "file": "outputs/viz/fasterrcnn-final/000001.jpg.png",
+      "mode": "fasterrcnn",
+      "prediction_count": 5
+    },
+    {
+      "image_id": "000004.jpg",
+      "file": "outputs/viz/fasterrcnn-final/000004.jpg.png",
+      "mode": "fasterrcnn",
+      "prediction_count": 13
+    },
+    {
+      "image_id": "000010.jpg",
+      "file": "outputs/viz/fasterrcnn-final/000010.jpg.png",
+      "mode": "fasterrcnn",
+      "prediction_count": 5
+    }
+  ]
+}

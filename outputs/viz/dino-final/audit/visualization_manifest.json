@@ -1,0 +1,28 @@
+{
+  "timestamp_utc": "2026-04-18T22:02:45.155747+00:00",
+  "mode": "dino",
+  "checkpoint_path": "outputs/dino-final/best.pt",
+  "dino_checkpoint_path": null,
+  "fasterrcnn_checkpoint_path": null,
+  "output_dir": "outputs/viz/dino-final",
+  "files": [
+    {
+      "image_id": "000001.jpg",
+      "file": "outputs/viz/dino-final/000001.jpg.png",
+      "mode": "dino",
+      "prediction_count": 3
+    },
+    {
+      "image_id": "000004.jpg",
+      "file": "outputs/viz/dino-final/000004.jpg.png",
+      "mode": "dino",
+      "prediction_count": 38
+    },
+    {
+      "image_id": "000010.jpg",
+      "file": "outputs/viz/dino-final/000010.jpg.png",
+      "mode": "dino",
+      "prediction_count": 5
+    }
+  ]
+}

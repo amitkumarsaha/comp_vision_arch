@@ -1,0 +1,61 @@
+{
+  "timestamp_utc": "2026-04-18T22:38:04.155593+00:00",
+  "mode": "comparison",
+  "checkpoint_path": null,
+  "dino_checkpoint_path": "outputs/dino-final/best.pt",
+  "fasterrcnn_checkpoint_path": "outputs/fasterrcnn-final/best.pt",
+  "output_dir": "outputs/viz/comparison-final",
+  "files": [
+    {
+      "image_id": "000001.jpg",
+      "file": "outputs/viz/comparison-final/comparison_000001.jpg.png",
+      "mode": "comparison",
+      "dino_prediction_count": 3,
+      "fasterrcnn_prediction_count": 5
+    },
+    {
+      "image_id": "000001.jpg",
+      "file": "outputs/viz/comparison-final/diagnostic_000001.jpg.png",
+      "mode": "diagnostic_triptych",
+      "ground_truth_count": 2,
+      "dino_prediction_count": 3,
+      "fasterrcnn_prediction_count": 5
+    },
+    {
+      "image_id": "000004.jpg",
+      "file": "outputs/viz/comparison-final/comparison_000004.jpg.png",
+      "mode": "comparison",
+      "dino_prediction_count": 38,
+      "fasterrcnn_prediction_count": 13
+    },
+    {
+      "image_id": "000004.jpg",
+      "file": "outputs/viz/comparison-final/diagnostic_000004.jpg.png",
+      "mode": "diagnostic_triptych",
+      "ground_truth_count": 7,
+      "dino_prediction_count": 38,
+      "fasterrcnn_prediction_count": 13
+    },
+    {
+      "image_id": "000010.jpg",
+      "file": "outputs/viz/comparison-final/comparison_000010.jpg.png",
+      "mode": "comparison",
+      "dino_prediction_count": 5,
+      "fasterrcnn_prediction_count": 5
+    },
+    {
+      "image_id": "000010.jpg",
+      "file": "outputs/viz/comparison-final/diagnostic_000010.jpg.png",
+      "mode": "diagnostic_triptych",
+      "ground_truth_count": 1,
+      "dino_prediction_count": 5,
+      "fasterrcnn_prediction_count": 5
+    },
+    {
+      "image_id": "all",
+      "file": "outputs/viz/comparison-final/comparison_grid.png",
+      "mode": "comparison_grid",
+      "rows": 3
+    }
+  ]
+}

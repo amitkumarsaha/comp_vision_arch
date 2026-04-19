@@ -1,0 +1,68 @@
+﻿{
+  "dino_summary": "outputs/dino-final/summary.json",
+  "faster_summary": "outputs/fasterrcnn-final/summary.json",
+  "dino_progress": "outputs/dino-final/audit/training_progress.json",
+  "faster_progress": "outputs/fasterrcnn-final/audit/training_progress.json",
+  "output_root": "outputs/viz",
+  "generated_files": [
+    {
+      "file": "outputs/viz/training_stats/map_curve_comparison.png",
+      "category": "training_stats",
+      "name": "map_curve_comparison.png"
+    },
+    {
+      "file": "outputs/viz/training_stats/per_class_ap_curves.png",
+      "category": "training_stats",
+      "name": "per_class_ap_curves.png"
+    },
+    {
+      "file": "outputs/viz/training_stats/dino_loss_components.png",
+      "category": "training_stats",
+      "name": "dino_loss_components.png"
+    },
+    {
+      "file": "outputs/viz/training_stats/fasterrcnn_loss_components.png",
+      "category": "training_stats",
+      "name": "fasterrcnn_loss_components.png"
+    },
+    {
+      "file": "outputs/viz/training_stats/epoch_duration_comparison.png",
+      "category": "training_stats",
+      "name": "epoch_duration_comparison.png"
+    },
+    {
+      "file": "outputs/viz/performance_comparison/best_map_bar.png",
+      "category": "performance_comparison",
+      "name": "best_map_bar.png"
+    },
+    {
+      "file": "outputs/viz/performance_comparison/best_per_class_ap_bar.png",
+      "category": "performance_comparison",
+      "name": "best_per_class_ap_bar.png"
+    },
+    {
+      "file": "outputs/viz/performance_comparison/best_vs_final_map_bar.png",
+      "category": "performance_comparison",
+      "name": "best_vs_final_map_bar.png"
+    },
+    {
+      "file": "outputs/viz/efficiency_analysis/accuracy_vs_trainable_params.png",
+      "category": "efficiency_analysis",
+      "name": "accuracy_vs_trainable_params.png"
+    },
+    {
+      "file": "outputs/viz/efficiency_analysis/map_per_million_params.png",
+      "category": "efficiency_analysis",
+      "name": "map_per_million_params.png"
+    },
+    {
+      "file": "outputs/viz/report_tables/experiment_summary_table.png",
+      "category": "report_tables",
+      "name": "experiment_summary_table.png"
+    }
+  ],
+  "best_epochs": {
+    "dino": 8,
+    "fasterrcnn": 5
+  }
+}
